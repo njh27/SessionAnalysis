@@ -547,7 +547,7 @@ class FitNeuronToEye(object):
 
     def predict_piece_linear(self, x_predict):
 
-        if self.fit_result['model_type'] is not 'piece_linear':
+        if self.fit_result['model_type'] != "piece_linear":
             raise RuntimeError("piecewise linear model must be the current model fit to use this prediction")
 
         if self.eye is not None:
@@ -579,7 +579,7 @@ class FitNeuronToEye(object):
 
     def predict_piece_linear_interaction(self, x_predict):
 
-        if self.fit_result['model_type'] is not 'piece_linear':
+        if self.fit_result['model_type'] != "piece_linear":
             raise RuntimeError("piecewise linear model must be the current model fit to use this prediction")
 
         if self.eye is not None:
