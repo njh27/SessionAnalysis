@@ -2,9 +2,12 @@ import numpy as np
 from scipy.stats import mode
 from scipy.signal import savgol_filter
 from numpy.linalg import norm
-import sys
 
 
+
+class ConjoinedMismatchError(Exception):
+    # Dummy exception class for a potential problem with list matching
+    pass
 
 from collections.abc import MutableSequence
 class ConjoinedList(MutableSequence):
@@ -12,30 +15,46 @@ class ConjoinedList(MutableSequence):
         indexing and iterating. Their key feature is they can be conjoined to
         other ConjoinedList objects to enforce both lists to remain in a one-to-one
         index mapping.  If elements from one list are deleted, the same elements
-        are deleted from all of its conjoined lists. Functionality that adds
-        list elements is not supported. """
+        are deleted from all of its conjoined lists. There is a weak hierarchy
+        insisting that new child ConjoinedLists are not conjoined to any other
+        lists. The children are still able to enforce one-to-one mapping
+        with their parent ConjoinedList. """
     def __init__(self, data_list):
         self._initialized_list = False
         self.__list__ = list(data_list)
-        self._conjoined_lists = []
+        # Conjoined list is conjoined with itself
+        self._conjoined_lists = [self]
+        self._element_ID = [x for x in range(0, len(data_list))]
+        self._next_ID = len(data_list)
         self._initialized_list = True
 
     def __delitem__(self, index):
-        del self.__list__[index]
-        if sys._getframe().f_back.f_code.co_name == '__delitem__':
-            # Prevent recursion between conjoined lists
-            return
-        for con_lst in self._conjoined_lists:
-            del con_lst[index]
+        for cl in self._conjoined_lists:
+            cl.__non_recursive_delitem__(index)
+        self.__check_match_IDs__()
+        return
 
-    def insert(self, index, value):
-        if self._initialized_list:
-            raise ValueError("Can't insert items for ConjoinedList type")
+    def __non_recursive_delitem__(self, index):
+        del self.__list__[index]
+        del self._element_ID[index]
+        return None
+
+    def insert(self, index, values):
+        """ Values will be inserted first to the current list, then each list in
+        _conjoined_lists in order. """
+        if len(values) != len(self._conjoined_lists):
+            raise ValueError("A value must be inserted for each conjoined list in _conjoined_lists.")
         else:
-            self.__list__.insert(index, value)
+            for cl_ind, cl in enumerate(self._conjoined_lists):
+                cl.__list__.insert(index, values[cl_ind])
+                cl._element_ID.insert(index, cl._next_ID)
+                cl._next_ID += 1
+        self.__check_match_IDs__()
+        return None
 
     def __setitem__(self, index, value):
         self.__list__[index] = value
+        return None
 
     def __getitem__(self, index):
         return self.__list__[index]
@@ -43,21 +62,63 @@ class ConjoinedList(MutableSequence):
     def __len__(self):
         return len(self.__list__)
 
-    def conjoin_list(self, NewConjoinedList):
-        if len(NewConjoinedList) != len(self):
+    def sort(self, key=None, reverse=False):
+        new_order = [y for x, y in sorted(zip(self.__list__,
+                        [x for x in range(0, len(self.__list__))]), key=key)]
+        if reverse:
+            new_order = [x for x in reversed(new_order)]
+        self.order(new_order)
+        # Match length is checked in "self.order"
+        return None
+
+    def order(self, new_order):
+        """ Reorders all conjoined lists according to the order indices input
+        in new_order. """
+        for cl in self._conjoined_lists:
+            cl.__non_recursive_order__(new_order)
+        self.__check_match_IDs__()
+        return None
+
+    def __non_recursive_order__(self, new_order):
+        self.__list__ = [self.__list__[x] for x in new_order]
+        self._element_ID = [self._element_ID[x] for x in new_order]
+        return None
+
+    def add_child(self, ChildConjoinedList):
+        """ Attach another ConjoinedList object to the current one. This new
+        child list cannot be associated with other ConjoinedList objects and
+        will inherit the _element_ID properties of the current list. Enforcing
+        this weak sense of hiearchy prevents chaotic conjoining and
+        rearranging. """
+        if len(ChildConjoinedList) != len(self):
             raise ValueError("Additional lists must be of the same length!")
-        self._conjoined_lists.append(NewConjoinedList)
+        if len(ChildConjoinedList._conjoined_lists) > 1:
+            raise AttributeError("Cannot conjoin with Conjoined lists that have been previously conjoined to other lists.")
+        self._conjoined_lists.append(ChildConjoinedList)
+        # This child conjoined list inherits the matching IDs of the parent
+        ChildConjoinedList._element_ID = [x for x in self._element_ID]
         try:
-            NewConjoinedList._conjoined_lists.append(self)
+            ChildConjoinedList._conjoined_lists.append(self)
         except AttributeError as err:
-            raise AttributeError("Input 'NewConjoinedList' must have a"
-                "conjoined_lists attribute to conjoin") from err
+            raise AttributeError("Only ConjoinedList type can be conjoined.") from err
+        return None
 
     def __str__(self):
         return f"{self.__list__}"
 
     def __repr__(self):
         return f"SessionAnalysis.ConjoinedList({self.__list__})"
+
+    def __check_match_IDs__(self):
+        for cl in self._conjoined_lists:
+            if len(cl) != len(self):
+                raise ConjoinedMismatchError("Conjoined lists no longer have same length!")
+            if len(cl._element_ID) != len(set(cl._element_ID)):
+                raise ConjoinedMismatchError("Conjoined list contains duplicate element IDs and may have been compromised!")
+            for ind, ID in enumerate(self._element_ID):
+                if ID != cl._element_ID[ind]:
+                    raise ConjoinedMismatchError("Match between elements of conjoined lists has been broken!")
+        return None
 
 
 class Session(object):
