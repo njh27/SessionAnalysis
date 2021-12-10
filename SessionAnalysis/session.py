@@ -18,7 +18,21 @@ class ConjoinedList(MutableSequence):
         are deleted from all of its conjoined lists. There is a weak hierarchy
         insisting that new child ConjoinedLists are not conjoined to any other
         lists. The children are still able to enforce one-to-one mapping
-        with their parent ConjoinedList. """
+        with their parent ConjoinedList.
+
+        Note that if you attempt to delete a reference to an instance of a
+        ConjoinedList, references to it will remain in any other ConjoinedLists
+        to which it was previously joined.
+
+        Parameters
+        ----------
+        data_list : python list
+
+        Returns
+        -------
+        ConjoinedList :
+            Creates an instantiation of the ConjoinedList class.
+    """
     def __init__(self, data_list):
         self._initialized_list = False
         self.__list__ = list(data_list)
@@ -29,10 +43,17 @@ class ConjoinedList(MutableSequence):
         self._initialized_list = True
 
     def __delitem__(self, index):
+        print("DELETING INDEX", index)
         for cl in self._conjoined_lists:
             cl.__non_recursive_delitem__(index)
         self.__check_match_IDs__()
         return
+
+    def __delete__(self):
+        print("IN THE DELETE")
+
+    def __del__(self):
+        print("IN THE DEL")
 
     def __non_recursive_delitem__(self, index):
         del self.__list__[index]
@@ -98,7 +119,10 @@ class ConjoinedList(MutableSequence):
         # This child conjoined list inherits the matching IDs of the parent
         ChildConjoinedList._element_ID = [x for x in self._element_ID]
         try:
-            ChildConjoinedList._conjoined_lists.append(self)
+            # Child conjoined list is conjoined to every list in parent
+            for cl in self._conjoined_lists:
+                if cl not in ChildConjoinedList._conjoined_lists:
+                    ChildConjoinedList._conjoined_lists.append(cl)
         except AttributeError as err:
             raise AttributeError("Only ConjoinedList type can be conjoined.") from err
         return None
@@ -122,7 +146,13 @@ class ConjoinedList(MutableSequence):
 
 
 class Session(object):
-    """ A class containing trials and their associated timeseries and events.
+    """ A class containing trials and their associated timeseries and events
+    to allow behavioral and neural analysis of specific trials from an
+    experimental session.
+
+    The base object should be created from a list of dictionaries that represent
+    trials. From this point, list of neuron dictionaries can be added as can
+    easier access labels such as trial blocks.
 
     The list of trials is added as a ConjoinedList so that lists of neurons can
     be added to the behavioral trial data. Each trial can contain events and
@@ -132,14 +162,27 @@ class Session(object):
 
     Parameters
     ----------
-    data : numpy ndarray
-        Each row of data will be treated as an observation and each column as a
-        dimension over which distance will be computed.  Must be two dimensional.
-    median_cluster_size : {int, float, ndarray etc.}
-        Must be a single, scalar value regardless of type. New cluster centers
-        will be added until the median number of points from data that are
-        nearest a cluster center is less than or equal to this number (see
-        Notes below).
+    trial_data : python list
+        Each element of the list must contain a dictionary that specifies the
+        following trial attributes via its keys. These keys and data are
+        required to define a session.
+        trial_name : string
+            Name of the given trial. Will be used to reference trials of this
+            type.
+        behavioral_data : dict
+            Dictionary containing behavioral data for the current trial. Each
+            key of the dictionary specifies a behavioral timeseries. The key
+            names for this dictionary can be used later to reference and extract
+            their corresponding data.
+        events : dict
+            Dictionary where each key names an event. Each event is a time
+            within the session on which the timeseries data (neural and
+            behavioral data) can be aligned. Event times should therefor be in
+            agreement with the time scheme of the timeseries data, i.e. starting
+            the beginning of each trial t=0 or relative to the entire session.
+            Event names can be used to reference events for alignment.
+    session_name : string
+        String naming the session for user reference. Default = None.
 
     Returns
     -------
@@ -147,42 +190,25 @@ class Session(object):
         Creates an instantiation of the Session class.
     """
 
-    def __init__(self, trial_data, name=None, blocks=None, neurons=None, sacc_time_cushion=20,
-                 nan_saccades=True, acceleration_thresh=1, velocity_thresh=30):
-        if name is None:
-            name_start = len(maestro_data[0]['filename']) - maestro_data[0]['filename'][-1::-1].find('/')
-            name_stop = len(maestro_data[0]['filename']) - maestro_data[0]['filename'][-1::-1].find('.') - 1
-            self.name = maestro_data[0]['filename'][name_start:name_stop]
-        else:
-            self.name = name
-        self.blocks = {} if blocks is None else blocks
-        self.neurons = neurons
-        self.maestro_data_2_trials(maestro_data)
+    def __init__(self, trial_data, session_name=None):
+        """
+        """
+        self.set_trial_data(trial_data)
+        self.session_name = session_name
+        self.blocks = {}
         self.neurons = []
+        # Keys required for trial dictionaries
+        self._required_trial_keys = ["trial_name", "behavioral_data", "events"]
 
-        # Set values that will be used for any functions that depend on saccade removal
-        self.sacc_time_cushion = sacc_time_cushion
-        self.nan_saccades = nan_saccades
-        self.acceleration_thresh = acceleration_thresh
-        self.velocity_thresh = velocity_thresh
-
-    def maestro_data_2_trials(self, maestro_data):
-        """ Streamline the Maestro data list into a list of trials """
-        self.trials = ConjoinedList([{} for x in range(0, len(maestro_data))])
-        for t in range(0, len(maestro_data)):
-            self.trials[t]['trial_name'] = maestro_data[t]['trial_name']
-            self.trials[t]['set_name'] = maestro_data[t]['set_name']
-            self.trials[t]['sub_set_name'] = maestro_data[t]['sub_set_name']
-            self.trials[t]['timestamp'] = maestro_data[t]['timestamp']
-            self.trials[t]['duration_ms'] = maestro_data[t]['duration_ms']
-            self.trials[t]['maestro_events'] = maestro_data[t]['maestro_events']
-            self.trials[t]['time_series'] = maestro_data[t]['time_series']
-            self.trials[t]['time_series_alignment'] = maestro_data[t]['time_series_alignment']
-            self.trials[t]['eye_position'] = maestro_data[t]['eye_position']
-            self.trials[t]['eye_velocity'] = maestro_data[t]['eye_velocity']
-            self.trials[t]['targets'] = maestro_data[t]['targets']
-            self.trials[t]['plexon_start_stop'] = maestro_data[t]['plexon_start_stop']
-            self.trials[t]['plexon_events'] = maestro_data[t]['plexon_events']
+    def set_trial_data(self, trial_data):
+        for t_ind, t in enumerate(trial_data):
+            if type(t) != dict:
+                raise ValueError("Each element of input trial data list must be a dictionary.")
+            for rk in self._required_trial_keys:
+                if rk not in t.keys():
+                    raise ValueError("Dictionaries for each trial must have all required keys. Key ", rk, "not found in trial_data element ", t_ind)
+        self.trial_data = ConjoinedList(trial_data)
+        return None
 
     def add_neuron(self, Neuron):
         """. """
