@@ -145,7 +145,195 @@ class ConjoinedList(MutableSequence):
         return None
 
 
-class Session(object):
+class Trial(dict):
+    """ A class containing trials and their associated timeseries and events
+    to allow behavioral and neural analysis of specific trials from an
+    experimental session.
+
+    The base object should be created from a list of dictionaries that represent
+    trials. From this point, list of neuron dictionaries can be added as can
+    easier access labels such as trial blocks.
+
+    The list of trials is added as a ConjoinedList so that lists of neurons can
+    be added to the behavioral trial data. Each trial can contain events and
+    multiple named timeseries data so that behavior and neuron analysis can be
+    performed. Trials can contain names for later reference and indexing as well
+    as blocks, which index groups of related trials.
+
+    Parameters
+    ----------
+    trial_dict : python dict
+        Each dictionary must specifiy the following trial attributes via its
+        keys to define a Trial. These keys are NOT CASE SENSITIVE. These keys
+        will be mapped to lower case versions. Any additional keys will remain
+        exactly as input. Integer keys are NOT allowed as the trial data can be
+        indexed by integers and slices. If duplicate keys are used within the
+        data dict and the events dict, the keys for the data dict are searched
+        first. Any additional keys are not checked by the builtin/inherited
+        functions (e.g. __getitem__, __delitem___ etc.)
+        name : string
+            Name of the given trial. Will be used to reference trials of this
+            type.
+        data : dict
+            Dictionary containing time dependent data for the current trial,
+            such as stimulus and/or behavioral movement data. Each key of the
+            dictionary specifies a timeseries. The key names for this
+            dictionary can be used later to reference and extract their
+            corresponding data. The data referenced by each key should be
+            indexable using integers or slices and will be converted to a
+            numpy array.
+        events : dict
+            Dictionary where each key names an event. Each event is a time
+            within the session on which the timeseries data (neural and
+            behavioral data) can be aligned. Event times should therefor be in
+            agreement with the time scheme of the timeseries data, i.e. starting
+            the beginning of each trial t=0 or relative to the entire session.
+            Event names can be used to reference events for alignment.
+
+    Returns
+    -------
+    None :
+        Creates an instantiation of the Trial class.
+    """
+
+    def __init__(self, trial_dict):
+        """
+        """
+        # Keys required for trial dictionaries
+        self.__required_trial_keys__ = ["name", "data", "events"]
+        self.data_dict = trial_dict
+        self._set_trial_data(trial_dict)
+        self._check_trial_data()
+
+    def _set_trial_data(self, trial_dict):
+        if type(trial_dict) != dict:
+            raise InputError("Input trial_dict must be a dictionary.")
+
+        rtk_copy = [x for x in self.__required_trial_keys__]
+        for tdk in trial_dict.keys():
+            # Check for required keys and assign them as lower case to self
+            tdk_required = False
+            for rk_ind, rk in enumerate(rtk_copy):
+                if tdk.lower() == rk:
+                    del rtk_copy[rk_ind]
+                    if rk == "name":
+                        self.name = trial_dict[tdk]
+                        tdk_required = True
+                        break
+                    elif rk == "events":
+                        self.events = trial_dict[tdk]
+                        tdk_required = True
+                        break
+                    elif rk == "data":
+                        self.data = trial_dict[tdk]
+                        tdk_required = True
+                        break
+                    else:
+                        # This shouldn't happen unless __required_trial_keys__ is out of date?
+                        raise ValueError("Required key matched but not specified during parse")
+            if not tdk_required:
+                # This is a key that was input but not required
+                setattr(self, tdk, trial_dict[tdk])
+
+        if len(rtk_copy) > 0:
+            raise KeyError("Input trial_dict must have all required keys. Key(s) '{0}' not found.".format(rtk_copy))
+        for rk in self.__required_trial_keys__:
+            if rk == "name":
+                if type(trial_dict[rk]) != str:
+                    raise ValueError("Input trial_dict key 'name' must be a string of the trial name.")
+            elif rk == "data":
+                if type(trial_dict[rk]) != dict:
+                    raise ValueError("Input trial_dict key 'data' must be a dictionary that maps data name/type to the data timeseries.")
+            elif rk == "events":
+                if type(trial_dict[rk]) != dict:
+                    raise ValueError("Input trial_dict key 'events' must be a dictionary that maps event name to the time of the event.")
+        return None
+
+    def _check_trial_data(self):
+        if len(self.data) > 0:
+            for data_key in self.data.keys():
+                print("Should set to timeseries or Numpy array in _set_trial_data")
+        else:
+            # No trial data present
+            pass
+
+    def __getitem__(self, index):
+        if type(index) == tuple:
+            # Multiple attribute/indices input so split
+            attribute = index[0]
+            index = index[1:]
+            if len(index) == 1: index = index[0]
+        else:
+            attribute = index
+            index = None
+        if (type(index) == int) or (type(index) == slice) or (type(index) == tuple):
+            is_index = True
+        else:
+            is_index = False
+        if (index is None) and (type(attribute) == str):
+            try:
+                att_value = getattr(self, attribute)
+                return att_value
+            except AttributeError:
+                for key in self.data.keys():
+                    if key == attribute:
+                        return self.data[key]
+                for key in self.events.keys():
+                    if key == attribute:
+                        return self.events[key]
+                raise ValueError("Could not find value '{0}'.".formate(attribute))
+        elif (type(index) == str) and (type(attribute) == str):
+            try:
+                att_value = getattr(self, attribute)
+                return att_value[index]
+            except KeyError:
+                raise ValueError("Could not find '{0}' in dictionary attribute '{1}'".format(index, attribute))
+        elif (is_index) and (type(attribute) == str):
+            try:
+                att_value = getattr(self, attribute)
+                return att_value[index]
+            except AttributeError:
+                if attribute in self.data:
+                    return self.data[attribute][index]
+                raise
+        else:
+            print("INDEXING CONTINGENCY NOT FOUND")
+            pass
+
+    def __contains__(self, value):
+        if (type(value) == int) or (type(value) == slice):
+            return False # Integer keys used as indices and not allowed
+        try:
+            self.__getitem__(value)
+            return True
+        except:
+            return False
+
+    def __delattr__(self, attribute):
+        if attribute in self.__required_trial_keys__:
+            raise ValueError("Cannot delete attribute '{0}' from objects of Trial class.".format(attribute))
+        else:
+            super().__delattr__(attribute)
+        return None
+
+    def __delitem__(self, item):
+        if item in self.__required_trial_keys__:
+            raise ValueError("Cannot delete item '{0}' from objects of Trial class.".format(item))
+        if item in self.data.keys():
+            del self.data[item]
+            return None
+        elif item in self.events.keys():
+            del self.events[item]
+            return None
+        else:
+            raise AttributeError("No field '{0}' found in Trial data or events.".format(item))
+
+    def __iter__(self):
+        print("IN ITER")
+
+
+
+class Session(dict):
     """ A class containing trials and their associated timeseries and events
     to allow behavioral and neural analysis of specific trials from an
     experimental session.
