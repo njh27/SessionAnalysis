@@ -201,9 +201,10 @@ class Trial(dict):
         """
         # Keys required for trial dictionaries
         self.__required_trial_keys__ = ["name", "data", "events"]
-        self.data_dict = trial_dict
         self._set_trial_data(trial_dict)
         self._check_trial_data()
+        # For defining iterator over attributes
+        self.__build_iterator__()
 
     def _set_trial_data(self, trial_dict):
         if type(trial_dict) != dict:
@@ -235,6 +236,7 @@ class Trial(dict):
                 # This is a key that was input but not required
                 setattr(self, tdk, trial_dict[tdk])
 
+        # Check input now that we know the number of required keys found
         if len(rtk_copy) > 0:
             raise KeyError("Input trial_dict must have all required keys. Key(s) '{0}' not found.".format(rtk_copy))
         for rk in self.__required_trial_keys__:
@@ -319,18 +321,55 @@ class Trial(dict):
     def __delitem__(self, item):
         if item in self.__required_trial_keys__:
             raise ValueError("Cannot delete item '{0}' from objects of Trial class.".format(item))
-        if item in self.data.keys():
-            del self.data[item]
+        try:
+            self.__delattr__(item)
             return None
-        elif item in self.events.keys():
-            del self.events[item]
-            return None
-        else:
-            raise AttributeError("No field '{0}' found in Trial data or events.".format(item))
+        except AttributeError:
+            if item in self.data.keys():
+                del self.data[item]
+                return None
+            elif item in self.events.keys():
+                del self.events[item]
+                return None
+            else:
+                raise AttributeError("No field '{0}' found in Trial data or events.".format(item))
+
+    def __build_iterator__(self):
+        iter_str = [x for x in self.__dict__.keys()]
+        for x in ["data", "events"]:
+            for key in self[x]:
+                iter_str.append(key)
+        self.__myiterator__ = iter(iter_str)
 
     def __iter__(self):
-        print("IN ITER")
+        # Reset iter object to current attributes
+        self.__build_iterator__()
+        return self
 
+    def __next__(self):
+        next_item = next(self.__myiterator__)
+        # Do not return 'hidden' attributes/keys
+        while next_item[0:2] == "__":
+            next_item = next(self.__myiterator__)
+        return next_item
+
+    def __len__(self):
+        n = 0
+        for x in self:
+            n += 1
+        return n
+
+    # def __setattr__(self):
+    #     print("trying to set")
+
+    def __clear__(self):
+        pass
+
+    def __update__(self):
+        print("updating")
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
 
 
 class Session(dict):
