@@ -259,6 +259,18 @@ class Trial(dict):
             # No trial data present
             pass
 
+    def get(self, key):
+        return self.__getitem__(key)
+
+    def setdefault(self, key, default=None):
+        try:
+            return self.get(key)
+        except:
+            return default
+
+    def keys(self):
+        return [x for x in self]
+
     def __getitem__(self, index):
         if type(index) == tuple:
             # Multiple attribute/indices input so split
@@ -300,7 +312,7 @@ class Trial(dict):
                 raise
         else:
             print("INDEXING CONTINGENCY NOT FOUND")
-            pass
+            raise ValueError("Could not resolve reqested index {0}.".format(index))
 
     def __contains__(self, value):
         if (type(value) == int) or (type(value) == slice):
@@ -359,17 +371,41 @@ class Trial(dict):
             n += 1
         return n
 
-    # def __setattr__(self):
-    #     print("trying to set")
-
-    def __clear__(self):
-        pass
-
     def __update__(self):
         print("updating")
 
     def __setitem__(self, key, value):
+        if type(key) == int:
+            raise ValueError("'Trial' objects can not use integers as keys/attributes.")
         setattr(self, key, value)
+        return None
+
+    def update(self, new_data):
+        if type(new_data) == dict:
+            for key, value in new_data.items():
+                self.__setitem__(key, value)
+            return None
+        # If not dictionary try assuming it's an iterable of pairs
+        try:
+            for key, value in new_data:
+                self.__setitem__(key, value)
+            return None
+        except:
+            raise ValueError("Inputs must be a dictionary or iterable of 'key', 'value' pairs.")
+
+    """ Below are overrriden to be not defined from dictionary class"""
+    def clear(self):
+        raise AttributeError("'Trial' object has no attribute '{0}'.".format("clear"))
+    def copy(self):
+        raise AttributeError("'Trial' object has no attribute '{0}'.".format("copy"))
+    def items(self):
+        raise AttributeError("'Trial' object has no attribute '{0}'.".format("items"))
+    def pop(self):
+        raise AttributeError("'Trial' object has no attribute '{0}'.".format("pop"))
+    def popitem(self):
+        raise AttributeError("'Trial' object has no attribute '{0}'.".format("popitem"))
+    def values(self):
+        raise AttributeError("'Trial' object has no attribute '{0}'.".format("values"))
 
 
 class Session(dict):
