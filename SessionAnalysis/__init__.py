@@ -2,3 +2,4 @@ import SessionAnalysis.neuron_tuning
 import SessionAnalysis.session_analysis
 import SessionAnalysis.timeseries
 import SessionAnalysis.session
+import SessionAnalysis.trial
