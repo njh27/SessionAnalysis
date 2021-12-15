@@ -5,45 +5,31 @@ fed into the Session class for indexing and analysis. """
 
 
 class Trial(dict):
-    """ A class containing trials and their associated timeseries and events
-    to allow behavioral and neural analysis of specific trials from an
-    experimental session.
-
-    The base object should be created from a list of dictionaries that represent
-    trials. From this point, list of neuron dictionaries can be added as can
-    easier access labels such as trial blocks.
-
-    The list of trials is added as a ConjoinedList so that lists of neurons can
-    be added to the behavioral trial data. Each trial can contain events and
-    multiple named timeseries data so that behavior and neuron analysis can be
-    performed. Trials can contain names for later reference and indexing as well
-    as blocks, which index groups of related trials.
+    """ A class containing a generic trial and its associated timeseries and
+    events. Data are organized and class functions are definted to make it
+    easier to index and analyze associated data.
 
     Parameters
     ----------
     trial_dict : python dict
-        Each dictionary must specifiy the following trial attributes via its
+        The dictionary must specifiy the following trial attributes via its
         keys to define a Trial. These keys are NOT CASE SENSITIVE. These keys
         will be mapped to lower case versions. Any additional keys will remain
         exactly as input. Integer keys are NOT allowed as the trial data can be
-        indexed by integers and slices. If duplicate keys are used within the
-        data dict and the events dict, the keys for the data dict are searched
-        first. Any additional keys are not checked by the builtin/inherited
-        functions (e.g. __getitem__, __delitem___ etc.)
-        name : string
-            Name of the given trial. Will be used to reference trials of this
-            type.
+        indexed by integers and slices. Recommended not to use duplicate keys
+        within the data and events dicts, but in case they are, keys for the
+        data dict are searched first. Any additional keys are not checked by
+        the builtin/inherited functions (e.g. __getitem__, __delitem___ etc.)
+        name : str
+            Name of the given trial.
         data : dict
-            Dictionary containing time dependent data for the current trial,
-            such as stimulus and/or behavioral movement data. Each key of the
-            dictionary specifies a timeseries. The key names for this
-            dictionary can be used later to reference and extract their
-            corresponding data. The data referenced by each key should be
-            indexable using integers or slices and will be converted to a
-            numpy array.
+            Dictionary containing time dependent data such as stimulus and/or
+            behavioral movement data. Each key of the dictionary specifies a
+            timeseries. The key names for this dictionary can be used later to
+            reference and extract their corresponding data.
         events : dict
             Dictionary where each key names an event. Each event is a time
-            within the session on which the timeseries data (neural and
+            within the session on which the timeseries data (e.g. neural and
             behavioral data) can be aligned. Event times should therefor be in
             agreement with the time scheme of the timeseries data, i.e. starting
             the beginning of each trial t=0 or relative to the entire session.
@@ -51,8 +37,7 @@ class Trial(dict):
 
     Returns
     -------
-    None :
-        Creates an instantiation of the Trial class.
+    object of Trial class
     """
 
     def __init__(self, trial_dict):
@@ -268,55 +253,41 @@ class Trial(dict):
 
 
 class ApparatusTrial(Trial):
-    """ A class containing trials and their associated timeseries and events
-    to allow behavioral and neural analysis of specific trials from an
-    experimental session.
-
-    The base object should be created from a list of dictionaries that represent
-    trials. From this point, list of neuron dictionaries can be added as can
-    easier access labels such as trial blocks.
-
-    The list of trials is added as a ConjoinedList so that lists of neurons can
-    be added to the behavioral trial data. Each trial can contain events and
-    multiple named timeseries data so that behavior and neuron analysis can be
-    performed. Trials can contain names for later reference and indexing as well
-    as blocks, which index groups of related trials.
+    """ A class containing the timeseries associated with a trial experiemental
+    apparatus, e.g. target motion. See Trial class.
 
     Parameters
     ----------
     trial_dict : python dict
-        Each dictionary must specifiy the following trial attributes via its
+        The dictionary must specifiy the following trial attributes via its
         keys to define a Trial. These keys are NOT CASE SENSITIVE. These keys
         will be mapped to lower case versions. Any additional keys will remain
         exactly as input. Integer keys are NOT allowed as the trial data can be
-        indexed by integers and slices. If duplicate keys are used within the
-        data dict and the events dict, the keys for the data dict are searched
-        first. Any additional keys are not checked by the builtin/inherited
-        functions (e.g. __getitem__, __delitem___ etc.)
-        name : string
-            Name of the given trial. Will be used to reference trials of this
-            type.
+        indexed by integers and slices. Recommended not to use duplicate keys
+        within the data and events dicts, but in case they are, keys for the
+        data dict are searched first. Any additional keys are not checked by
+        the builtin/inherited functions (e.g. __getitem__, __delitem___ etc.)
+        name : str
+            Name of the given trial.
         data : dict
-            Dictionary containing time dependent data for the current trial,
-            such as stimulus and/or behavioral movement data. Each key of the
-            dictionary specifies a timeseries. The key names for this
-            dictionary can be used later to reference and extract their
-            corresponding data. The data referenced by each key should be
-            indexable using integers or slices and will be converted to a
-            numpy array.
+            Dictionary containing time dependent data such as stimulus and/or
+            behavioral movement data. Each key of the dictionary specifies a
+            timeseries. The key names for this dictionary can be used later to
+            reference and extract their corresponding data.
         events : dict
-            Dictionary where each key names an event. Each eventa
-            dir is a time
-            within the session on which the timeseries data (neural and
+            Dictionary where each key names an event. Each event is a time
+            within the session on which the timeseries data (e.g. neural and
             behavioral data) can be aligned. Event times should therefor be in
             agreement with the time scheme of the timeseries data, i.e. starting
             the beginning of each trial t=0 or relative to the entire session.
             Event names can be used to reference events for alignment.
+    data_name : str
+        Name used to describe the type of data and provide easy access for
+        indexing the data in trial_dict[data]. e.g. "target"
 
     Returns
     -------
-    None :
-        Creates an instantiation of the Trial class.
+    object of ApparatusTrial class
     """
 
     def __init__(self, trial_dict, data_name="apparatus"):
@@ -325,6 +296,161 @@ class ApparatusTrial(Trial):
         if type(data_name) != str:
             raise ValueError("ApparatusTrial object must have a string for data_name.")
         self.__data_alias__ = data_name
+        Trial.__init__(self, trial_dict)
+
+    def __getitem__(self, index):
+        # Use data alias as shortcut to indexing data
+        if self.__data_alias__ in index:
+            if type(index) == tuple:
+                # Multiple attribute/indices input so split
+                attribute = index[0]
+                index = index[1:]
+                if len(index) == 1: index = index[0]
+            else:
+                attribute = index
+                index = None
+            if index is None:
+                return self.data
+            else:
+                return self.data[index]
+        else:
+            return Trial.__getitem__(self, index)
+
+    def __build_iterator__(self):
+        iter_str = [x for x in self.__dict__.keys()]
+        for x in ["data", "events"]:
+            for key in self[x]:
+                iter_str.append(key)
+        # Modify to substitute data_name/alias for "data"
+        iter_str.remove("data")
+        iter_str.append(self.__data_alias__)
+        self.__myiterator__ = iter(iter_str)
+
+
+class BehavioralTrial(Trial):
+    """ A class containing the timeseries associated with a trial's behavioral
+    data, e.g. eye position. See Trial class.
+
+    Parameters
+    ----------
+    trial_dict : python dict
+        The dictionary must specifiy the following trial attributes via its
+        keys to define a Trial. These keys are NOT CASE SENSITIVE. These keys
+        will be mapped to lower case versions. Any additional keys will remain
+        exactly as input. Integer keys are NOT allowed as the trial data can be
+        indexed by integers and slices. Recommended not to use duplicate keys
+        within the data and events dicts, but in case they are, keys for the
+        data dict are searched first. Any additional keys are not checked by
+        the builtin/inherited functions (e.g. __getitem__, __delitem___ etc.)
+        name : str
+            Name of the given trial.
+        data : dict
+            Dictionary containing time dependent data such as stimulus and/or
+            behavioral movement data. Each key of the dictionary specifies a
+            timeseries. The key names for this dictionary can be used later to
+            reference and extract their corresponding data.
+        events : dict
+            Dictionary where each key names an event. Each event is a time
+            within the session on which the timeseries data (e.g. neural and
+            behavioral data) can be aligned. Event times should therefor be in
+            agreement with the time scheme of the timeseries data, i.e. starting
+            the beginning of each trial t=0 or relative to the entire session.
+            Event names can be used to reference events for alignment.
+    data_name : str
+        Name used to describe the type of data and provide easy access for
+        indexing the data in trial_dict[data]. e.g. "eye_pos"
+
+    Returns
+    -------
+    object of BehavioralTrial class
+    """
+
+    def __init__(self, trial_dict, data_name="behavior"):
+        """
+        """
+        if type(data_name) != str:
+            raise ValueError("BehavioralTrial object must have a string for data_name.")
+        self.__data_alias__ = data_name
+        Trial.__init__(self, trial_dict)
+
+    def __getitem__(self, index):
+        # Use data alias as shortcut to indexing data
+        if self.__data_alias__ in index:
+            if type(index) == tuple:
+                # Multiple attribute/indices input so split
+                attribute = index[0]
+                index = index[1:]
+                if len(index) == 1: index = index[0]
+            else:
+                attribute = index
+                index = None
+            if index is None:
+                return self.data
+            else:
+                return self.data[index]
+        else:
+            return Trial.__getitem__(self, index)
+
+    def __build_iterator__(self):
+        iter_str = [x for x in self.__dict__.keys()]
+        for x in ["data", "events"]:
+            for key in self[x]:
+                iter_str.append(key)
+        # Modify to substitute data_name/alias for "data"
+        iter_str.remove("data")
+        iter_str.append(self.__data_alias__)
+        self.__myiterator__ = iter(iter_str)
+
+
+class NeuronTrial(Trial):
+    """ A class containing the timeseries associated with a trial for a single
+    neuron's responses. See Trial class.
+
+    Parameters
+    ----------
+    trial_dict : python dict
+        The dictionary must specifiy the following trial attributes via its
+        keys to define a Trial. These keys are NOT CASE SENSITIVE. These keys
+        will be mapped to lower case versions. Any additional keys will remain
+        exactly as input. Integer keys are NOT allowed as the trial data can be
+        indexed by integers and slices. Recommended not to use duplicate keys
+        within the data and events dicts, but in case they are, keys for the
+        data dict are searched first. Any additional keys are not checked by
+        the builtin/inherited functions (e.g. __getitem__, __delitem___ etc.)
+        name : str
+            Name of the given trial.
+        data : dict
+            Dictionary containing time dependent data such as stimulus and/or
+            behavioral movement data. Each key of the dictionary specifies a
+            timeseries. The key names for this dictionary can be used later to
+            reference and extract their corresponding data.
+        events : dict
+            Dictionary where each key names an event. Each event is a time
+            within the session on which the timeseries data (e.g. neural and
+            behavioral data) can be aligned. Event times should therefor be in
+            agreement with the time scheme of the timeseries data, i.e. starting
+            the beginning of each trial t=0 or relative to the entire session.
+            Event names can be used to reference events for alignment.
+    data_name : str
+        Name used to describe the type of data and provide easy access for
+        indexing the data in trial_dict[data]. e.g. "spikes"
+    classif : str
+        Name used to describe the classification or type of neuron in this
+        trial. This name can be used in later analyses to filter specific
+        neurons.
+
+    Returns
+    -------
+    object of NeuronTrial class
+    """
+
+    def __init__(self, trial_dict, data_name="spikes", classif=None):
+        """
+        """
+        if type(data_name) != str:
+            raise ValueError("NeuronTrial object must have a string for data_name.")
+        self.__data_alias__ = data_name
+        self.classif = classif
         Trial.__init__(self, trial_dict)
 
     def __getitem__(self, index):
