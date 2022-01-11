@@ -15,11 +15,12 @@ class Trial(dict):
         The dictionary must specifiy the following trial attributes via its
         keys to define a Trial. These keys are NOT CASE SENSITIVE. These keys
         will be mapped to lower case versions. Any additional keys will remain
-        exactly as input. Integer keys are NOT allowed as the trial data can be
-        indexed by integers and slices. Recommended not to use duplicate keys
-        within the data and events dicts, but in case they are, keys for the
-        data dict are searched first. Any additional keys are not checked by
-        the builtin/inherited functions (e.g. __getitem__, __delitem___ etc.)
+        exactly as input. Only keys that are strings will be allowed so as to
+        avoid confusion when indexing data values. Recommended not to use
+        duplicate keys within the data and events dicts, but in case they are,
+        keys for the data dict are searched first. Any additional keys are not
+        checked by the builtin/inherited functions
+        (e.g. __getitem__, __delitem___ etc.)
         name : str
             Name of the given trial.
         data : dict
@@ -52,7 +53,7 @@ class Trial(dict):
 
     def _set_trial_data(self, trial_dict):
         if type(trial_dict) != dict:
-            raise InputError("Input trial_dict must be a dictionary.")
+            raise TypeError("Input trial_dict must be a type dict.")
 
         rtk_copy = [x for x in self.__required_trial_keys__]
         for tdk in trial_dict.keys():
@@ -98,7 +99,8 @@ class Trial(dict):
     def _check_trial_data(self):
         if len(self.data) > 0:
             for data_key in self.data.keys():
-                print("Should set to timeseries or Numpy array in _set_trial_data")
+                pass
+                # print("Should set to timeseries or Numpy array in _set_trial_data")
         else:
             # No trial data present
             pass
@@ -115,48 +117,62 @@ class Trial(dict):
     def keys(self):
         return [x for x in self]
 
-    def __getitem__(self, index):
-        if type(index) == tuple:
-            # Multiple attribute/indices input so split
-            attribute = index[0]
-            index = index[1:]
-            if len(index) == 1: index = index[0]
-        else:
-            attribute = index
-            index = None
-        if (type(index) == int) or (type(index) == slice) or (type(index) == tuple):
-            is_index = True
-        else:
-            is_index = False
-        if (index is None) and (type(attribute) == str):
-            try:
-                att_value = getattr(self, attribute)
-                return att_value
-            except AttributeError:
-                for key in self.data.keys():
-                    if key == attribute:
-                        return self.data[key]
-                for key in self.events.keys():
-                    if key == attribute:
-                        return self.events[key]
-                raise ValueError("Could not find value '{0}'.".formate(attribute))
-        elif (type(index) == str) and (type(attribute) == str):
-            try:
-                att_value = getattr(self, attribute)
-                return att_value[index]
-            except KeyError:
-                raise ValueError("Could not find '{0}' in dictionary attribute '{1}'".format(index, attribute))
-        elif (is_index) and (type(attribute) == str):
-            try:
-                att_value = getattr(self, attribute)
-                return att_value[index]
-            except AttributeError:
-                if attribute in self.data:
-                    return self.data[attribute][index]
-                raise
-        else:
-            print("INDEXING CONTINGENCY NOT FOUND")
-            raise ValueError("Could not resolve reqested index {0}.".format(index))
+    def __getitem__(self, key):
+        try:
+            att_value = getattr(self, key)
+            return att_value
+        except AttributeError:
+            for k in self.data.keys():
+                if k == key:
+                    return self.data[k]
+            for k in self.events.keys():
+                if k == key:
+                    return self.events[k]
+            raise ValueError("Could not find value '{0}'.".formate(key))
+        except TypeError:
+            raise TypeError("Quick references to attributes of Trial objects must be string.")
+        # if type(index) == tuple:
+        #     # Multiple attribute/indices input so split
+        #     attribute = index[0]
+        #     index = index[1:]
+        #     if len(index) == 1: index = index[0]
+        # else:
+        #     attribute = index
+        #     index = None
+        #
+        # if (type(index) == int) or (type(index) == slice) or (type(index) == tuple):
+        #     is_index = True
+        # else:
+        #     is_index = False
+        # if (index is None) and (type(attribute) == str):
+        #     try:
+        #         att_value = getattr(self, attribute)
+        #         return att_value
+        #     except AttributeError:
+        #         for key in self.data.keys():
+        #             if key == attribute:
+        #                 return self.data[key]
+        #         for key in self.events.keys():
+        #             if key == attribute:
+        #                 return self.events[key]
+        #         raise ValueError("Could not find value '{0}'.".formate(attribute))
+        # elif (type(index) == str) and (type(attribute) == str):
+        #     try:
+        #         att_value = getattr(self, attribute)
+        #         return att_value[index]
+        #     except KeyError:
+        #         raise ValueError("Could not find '{0}' in dictionary attribute '{1}'".format(index, attribute))
+        # elif (is_index) and (type(attribute) == str):
+        #     try:
+        #         att_value = getattr(self, attribute)
+        #         return att_value[index]
+        #     except AttributeError:
+        #         if attribute in self.data:
+        #             return self.data[attribute][index]
+        #         raise
+        # else:
+        #     print("INDEXING CONTINGENCY NOT FOUND")
+        #     raise ValueError("Could not resolve reqested index {0}.".format(index))
 
     def __contains__(self, value):
         if (type(value) == int) or (type(value) == slice):
@@ -194,7 +210,8 @@ class Trial(dict):
         iter_str = [x for x in self.__dict__.keys()]
         for x in ["data", "events"]:
             for key in self[x]:
-                iter_str.append(key)
+                if type(key) == str:
+                    iter_str.append(key)
         self.__myiterator__ = iter(iter_str)
 
     def __iter__(self):
@@ -298,23 +315,26 @@ class ApparatusTrial(Trial):
         self.__data_alias__ = data_name
         Trial.__init__(self, trial_dict)
 
-    def __getitem__(self, index):
+    def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
-        if self.__data_alias__ in index:
-            if type(index) == tuple:
-                # Multiple attribute/indices input so split
-                attribute = index[0]
-                index = index[1:]
-                if len(index) == 1: index = index[0]
-            else:
-                attribute = index
-                index = None
-            if index is None:
-                return self.data
-            else:
-                return self.data[index]
+        if self.__data_alias__ == key:
+            return self.data
         else:
-            return Trial.__getitem__(self, index)
+            return Trial.__getitem__(self, key)
+        #     if type(index) == tuple:
+        #         # Multiple attribute/indices input so split
+        #         attribute = index[0]
+        #         index = index[1:]
+        #         if len(index) == 1: index = index[0]
+        #     else:
+        #         attribute = index
+        #         index = None
+        #     if index is None:
+        #         return self.data
+        #     else:
+        #         return self.data[index]
+        # else:
+        #     return Trial.__getitem__(self, index)
 
     def __build_iterator__(self):
         iter_str = [x for x in self.__dict__.keys()]
