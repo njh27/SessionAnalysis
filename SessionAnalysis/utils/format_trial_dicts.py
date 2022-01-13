@@ -10,7 +10,8 @@ def is_compressed(t):
         return False
 
 
-def events_list_to_dict(events_list, event_names=None, convert_to_ms=True):
+def events_list_to_dict(events_list, event_names=None, missing_event=None,
+                        convert_to_ms=True):
     """ Assigns the list of events of a single Maestro trial to a dictionary.
 
     If event names are given, only these events are kept in the output. If
@@ -33,6 +34,12 @@ def events_list_to_dict(events_list, event_names=None, convert_to_ms=True):
         DIO channel and ordered event number on that channel corresponding to
         the name of the desired event. Keys MUST be type "str" to be compatible
         with Trial objects.
+    missing_event : str("skip") or None
+        Determine what to do with trials that do not have the requested event
+        (e.g. incomplete trials). If "skip", nothing is done and the new events
+        dictionary will not have a key for the specified event. If None, or
+        any other value, then that value is assigned to the key for the
+        specified event.
     convert_to_ms : bool
         If True, all event times are multiplied by 1000 to convert to ms (the
         default Maestro output is in seconds).
@@ -71,13 +78,20 @@ def events_list_to_dict(events_list, event_names=None, convert_to_ms=True):
                 event_dict[evn] = events_list[event_names[evn][0]][event_names[evn][1]]
                 if convert_to_ms:
                     event_dict[evn] = event_dict[evn] * 1000
-            except:
-                raise LookupError("Could not find matching event indices for event name '{0}' with indices {1}".format(evn, event_names[evn]))
+            except IndexError:
+                # The requested index does not exist for this event name
+                if missing_event is None:
+                    event_dict[evn] = missing_event
+                elif missing_event.lower() == "skip":
+                    continue
+                else:
+                    event_dict[evn] = missing_event
 
     return event_dict
 
 
-def format_maestro_events(maestro_data, event_names_by_trial=None, convert_to_ms=True):
+def format_maestro_events(maestro_data, event_names_by_trial=None,
+                          missing_event=None, convert_to_ms=True):
     """ Reformats events data for each Maestro trial IN PLACE according to the
     dictionary requirements of Trial objects by iteratively calling
     events_list_to_dict.
@@ -99,6 +113,12 @@ def format_maestro_events(maestro_data, event_names_by_trial=None, convert_to_ms
         returns the desired event names for that trial type. The event names
         should be formatted as described in "events_list_to_dict" as they will
         be passed directly into this function.
+    missing_event : str("skip") or None
+        Determine what to do with trials that do not have the requested event
+        (e.g. incomplete trials). If "skip", nothing is done and the new events
+        dictionary will not have a key for the specified event. If None, or
+        any other value, then that value is assigned to the key for the
+        specified event.
     convert_to_ms : bool
         If True, all event times are multiplied by 1000 to convert to ms (the
         default Maestro output is in seconds).
@@ -116,12 +136,9 @@ def format_maestro_events(maestro_data, event_names_by_trial=None, convert_to_ms
             event_names = event_names_by_trial[t['header']['name']]
         except KeyError:
             event_names = None
-        try:
-            t['events'] = events_list_to_dict(t['events'], event_names, convert_to_ms)
-        except:
-            print(t['header']['name'])
-            print(event_names)
-            raise
+
+        t['events'] = events_list_to_dict(t['events'], event_names,
+                        missing_event, convert_to_ms)
 
     return None
 
