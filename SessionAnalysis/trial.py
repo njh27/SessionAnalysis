@@ -233,7 +233,13 @@ class Trial(dict):
         return n
 
     def __update__(self):
-        print("updating")
+        raise ValueError("updating NOT IMPLEMENTED")
+
+    def __str__(self):
+        return f"{type(self)}"
+
+    def __repr__(self):
+        return f"({type(self)})"
 
     def __setitem__(self, key, value):
         if type(key) == int:

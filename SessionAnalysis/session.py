@@ -83,6 +83,9 @@ class ConjoinedList(MutableSequence):
     def __len__(self):
         return len(self.__list__)
 
+    def __iter__(self):
+        return self.__list__.__iter__()
+
     def sort(self, key=None, reverse=False):
         new_order = [y for x, y in sorted(zip(self.__list__,
                         [x for x in range(0, len(self.__list__))]), key=key)]
@@ -145,7 +148,7 @@ class ConjoinedList(MutableSequence):
         return None
 
 
-class Session(dict):
+class Session(list):
     """ A class containing trials and their associated timeseries and events
     to allow behavioral and neural analysis of specific trials from an
     experimental session.
@@ -164,7 +167,10 @@ class Session(dict):
     ----------
     trial_data : python list of Trial type objects
         Each element of the list must contain an object of the Trial class
-        specified in the trial.py module.
+        specified in the trial.py module. This is not explicitly checked
+        because double imports can confuse checking so undefined errors could
+        result if other types are used. The first list of trial objects will
+        be treated as the parent for any future trial sets added.
         trial_name : string
             Name of the given trial. Will be used to reference trials of this
             type.
@@ -189,22 +195,31 @@ class Session(dict):
         Creates an instantiation of the Session class.
     """
 
-    def __init__(self, trial_data, session_name=None):
+    def __init__(self, trial_data, session_name=None, data_name=None):
         """
         """
-        self.add_trial_data(trial_data)
+        self._trial_lists = {}
+        self._trial_lists['__main'] = ConjoinedList(trial_data)
+        if data_name is None:
+            # Use data name of first trial as default
+            data_name = trial_data[0].__data_alias__
+        self.__data_fields = [data_name]
+        self._trial_lists[data_name] = self._trial_lists['__main']
         self.session_name = session_name
         self.blocks = {}
         self.neurons = []
 
-    def set_trial_data(self, trial_data):
-        for t_ind, t in enumerate(trial_data):
-            if type(t) != dict:
-                raise ValueError("Each element of input trial data list must be a dictionary.")
-            for rk in self._required_trial_keys:
-                if rk not in t.keys():
-                    raise ValueError("Dictionaries for each trial must have all required keys. Key ", rk, "not found in trial_data element ", t_ind)
-        self.trial_data = ConjoinedList(trial_data)
+    def add_trial_data(self, trial_data, data_name=None):
+        if data_name is None:
+            # Use data name of first trial as default
+            data_name = trial_data[0].__data_alias__
+        if data_name in self.__data_fields:
+            raise ValueError("Session already has data with name {0}.".format(data_name))
+        self.__data_fields.append(data_name)
+        # Save dictionary reference to this trial set and conjoin to __main
+        self._trial_lists[data_name] = ConjoinedList(trial_data)
+        self._trial_lists['__main'].add_child(self._trial_lists[data_name])
+
         return None
 
     def add_neuron(self, Neuron):
@@ -261,298 +276,31 @@ class Session(dict):
         for d_n in reversed(delete_whole_n):
             del self.blocks[block]['trial_windows'][d_n]
 
-    def find_saccade_windows(self):
-        """
-            """
-        # Force time_cushion to be integer so saccade windows are integers that can be used as indices
-        time_cushion = np.array(self.sacc_time_cushion).astype('int')
-        for trial in range(0, len(self.trials)):
-            # Compute normalized eye speed vector and corresponding acceleration
-            eye_speed = norm(np.vstack((self.trials[trial]['eye_velocity'][0], self.trials[trial]['eye_velocity'][1])), ord=None, axis=0)
-            eye_acceleration = np.zeros(eye_speed.shape)
-            eye_acceleration[1:] = np.diff(eye_speed, n=1, axis=0)
+    def __len__(self):
+        return len(self._trial_lists['__main'])
 
-            # Find saccades as all points exceeding input thresholds
-            threshold_indices = np.where(np.logical_or((eye_speed > self.velocity_thresh), (np.absolute(eye_acceleration) > self.acceleration_thresh)))[0]
-            if threshold_indices.size == 0:
-                # No saccades this trial
-                self.trials[trial]['saccade_windows'] = np.empty(0).astype('int')
-                self.trials[trial]['saccade_index'] = np.zeros(self.trials[trial]['duration_ms'], 'bool')
-                continue
+    def get(self, key):
+        return self.__getitem__(key)
 
-            # Find the end of all saccades based on the time gap between each element of threshold indices.
-            # Gaps between saccades must exceed the time_cushion padding on either end to count as separate saccades.
-            switch_indices = np.zeros_like(threshold_indices, dtype=bool)
-            switch_indices[0:-1] =  np.diff(threshold_indices) > time_cushion * 2
+    def setdefault(self, key, default=None):
+        try:
+            return self.get(key)
+        except:
+            return default
 
-            # Use switch index to find where one saccade ends and the next begins and store the locations.  These don't include
-            # the beginning of first saccade or end of last saccade, so add 1 element to saccade_windows
-            switch_points = np.where(switch_indices)[0]
-            saccade_windows = np.full((switch_points.shape[0] + 1, 2), np.nan, dtype='int')
+    def keys(self):
+        return self.__data_fields
 
-            # Check switch points and use their corresponding indices to find actual time values in threshold_indices
-            for saccade in range(0, saccade_windows.shape[0]):
-                if saccade == 0:
-                    # Start of first saccade not indicated in switch points so add time cushion to the first saccade
-                    # time in threshold indices after checking whether it is within time limit of trial data
-                    if threshold_indices[saccade] - time_cushion > 0:
-                        saccade_windows[saccade, 0] = threshold_indices[saccade] - time_cushion
-                    else:
-                        saccade_windows[saccade, 0] = 0
-
-                # Making this an "if" rather than "elif" means in case of only 1 saccade, this statement
-                # and the "if" statement above both run
-                if saccade == saccade_windows.shape[0] - 1:
-                    # End of last saccade, which is not indicated in switch points so add time cushion to end of
-                    # last saccade time in threshold indices after checking whether it is within time of trial data
-                    if len(eye_speed) < threshold_indices[-1] + time_cushion:
-                        saccade_windows[saccade, 1] = len(eye_speed)
-                    else:
-                        saccade_windows[saccade, 1] = threshold_indices[-1] + time_cushion
-                else:
-                    # Add cushion to end of current saccade.
-                    saccade_windows[saccade, 1] = threshold_indices[switch_points[saccade]] + time_cushion
-
-                # Add cushion to the start of next saccade if there is one
-                if saccade_windows.shape[0] > saccade + 1:
-                    saccade_windows[saccade + 1, 0] = threshold_indices[switch_points[saccade] + 1] - time_cushion
-            self.trials[trial]['saccade_windows'] = saccade_windows
-
-            # Set boolean index for marking saccade times and save
-            saccade_index = np.zeros(self.trials[trial]['duration_ms'], 'bool')
-            for saccade_win in self.trials[trial]['saccade_windows']:
-                saccade_index[saccade_win[0]:saccade_win[1]] = True
-            self.trials[trial]['saccade_index'] = saccade_index
-
-    def subtract_eye_offsets(self, name_params_dict, no_pos=False, no_vel=False, epsilon_eye=0.1, max_iter=10):
-        """
-            Only trials that appear in the name_params_dict will be adjusted. Each entry of name_params_dict
-            is a trial name that returns a 3 element list whose ordered entries are: [0] - maestro event number to
-            align on; [1] - maestro target to align on (e.g. fixation target = 0); [2] - a two element time window
-            relative to the align event in which to take the mode eye data from subtraction (e.g. [-200, 0]). """
-
-
-        print("WARNING: SOMETHING ABOUT THIS FUNCTION ISN'T RIGHT DUE TO THE RANDOMNESS OF WARNINGS FOR MEAN OF EMPTY SLICE (observed on data from Yoda_49)")
-        delta_eye = np.zeros(len(self.trials))
-        n_iters = 0
-        next_trial_list = [x for x in range(0, len(self.trials))]
-        while n_iters < max_iter and len(next_trial_list) > 0:
-            trial_indices = next_trial_list
-            next_trial_list = []
-            for trial in trial_indices:
-                curr_trial_name = self.trials[trial]['trial_name']
-                if curr_trial_name not in name_params_dict:
-                    continue
-                if not self.trials[trial]['maestro_events'][name_params_dict[curr_trial_name][0]]:
-                    # Current trial lacks desired align_segment
-                    continue
-
-                align_time = self.trials[trial]['targets'][name_params_dict[curr_trial_name][1]].get_next_refresh(self.trials[trial]['maestro_events'][name_params_dict[curr_trial_name][0]][0])
-                time_index = np.arange(align_time + name_params_dict[curr_trial_name][2][0], align_time + name_params_dict[curr_trial_name][2][1] + 1, 1, dtype='int')
-                if 'saccade_windows' in self.trials[trial]:
-                    saccade_index = self.trials[trial]['saccade_index'][time_index]
-                    time_index = time_index[~saccade_index]
-                    if np.all(saccade_index):
-                        # Entire fixation window has been marked as a saccade
-                        # TODO This is an error, or needs to be fixed, or skipped??
-                        print("Entire fixation window marked as saccade for trial {} and was skipped".format(trial))
-                        continue
-                if (not np.any(np.abs(self.trials[trial]['eye_velocity'][0][time_index]) < self.velocity_thresh) or
-                    not np.any(np.abs(self.trials[trial]['eye_velocity'][1][time_index]) < self.velocity_thresh)):
-                    # Entire fixation window is over velocity threshold
-                    # TODO This is an error, or needs to be fixed, or skipped??
-                    print("Entire fixation window marked as saccade for trial {} and was skipped".format(trial))
-                    continue
-
-                if not no_vel:
-                    # Get modes of eye data in fixation window, excluding saccades and velocity times over threshold, then subtract them from eye data
-                    horizontal_vel_mode, n_horizontal_vel_mode = mode(self.trials[trial]['eye_velocity'][0][time_index][np.abs(self.trials[trial]['eye_velocity'][0][time_index]) < self.velocity_thresh])
-                    self.trials[trial]['eye_velocity'][0] = self.trials[trial]['eye_velocity'][0] - horizontal_vel_mode
-                    vertical_vel_mode, n_vertical_vel_mode = mode(self.trials[trial]['eye_velocity'][1][time_index][np.abs(self.trials[trial]['eye_velocity'][1][time_index]) < self.velocity_thresh])
-                    self.trials[trial]['eye_velocity'][1] = self.trials[trial]['eye_velocity'][1] - vertical_vel_mode
-                else:
-                    horizontal_vel_mode = 0
-                    vertical_vel_mode = 0
-
-                # Position mode is also taken when VELOCITY is less than threshold and adjusted by the difference between eye data and target position
-                # if trial == 112:
-                #     print(np.nanmean(self.trials[trial]['targets'][name_params_dict[curr_trial_name][1]].position[0, time_index]))
-                #     print(self.trials[trial]['targets'][name_params_dict[curr_trial_name][1]].position[0, time_index])
-                #     print(self.trials[trial]['eye_position'][0][time_index][np.abs(self.trials[trial]['eye_velocity'][0][time_index]) < self.velocity_thresh])
-                #     # return
-                # print(trial, self.trials[trial]['eye_velocity'][0][time_index].shape)
-
-                if not no_pos:
-                    sub_mean = np.nanmean(self.trials[trial]['targets'][name_params_dict[curr_trial_name][1]].position[0, time_index])
-                    h_position_offset = self.trials[trial]['eye_position'][0][time_index][np.abs(self.trials[trial]['eye_velocity'][0][time_index]) < self.velocity_thresh] - sub_mean
-                    horizontal_pos_mode, n_horizontal_pos_mode = mode(h_position_offset)
-                    self.trials[trial]['eye_position'][0] = self.trials[trial]['eye_position'][0] - horizontal_pos_mode
-                    v_position_offset = self.trials[trial]['eye_position'][1][time_index][np.abs(self.trials[trial]['eye_velocity'][1][time_index]) < self.velocity_thresh] - np.nanmean(self.trials[trial]['targets'][name_params_dict[curr_trial_name][1]].position[1, time_index])
-                    vertical_pos_mode, n_vertical_pos_mode = mode(v_position_offset)
-                    self.trials[trial]['eye_position'][1] = self.trials[trial]['eye_position'][1] - vertical_pos_mode
-                else:
-                    horizontal_pos_mode = 0
-                    vertical_pos_mode = 0
-
-                delta_eye[trial] = np.amax(np.abs((horizontal_vel_mode, vertical_vel_mode, horizontal_pos_mode, vertical_pos_mode)))
-                if delta_eye[trial] >= epsilon_eye:
-                    # This trial's offsets aren't good enough so try again next loop
-                    next_trial_list.append(trial)
-
-            self.find_saccade_windows()
-            n_iters += 1
-
-    def assign_retinal_motion(self, target_num):
-        """ ."""
-        for trial in self.trials:
-            calculated_velocity = trial['targets'][target_num].velocity_from_position(True)
-            trial['retinal_motion'] = calculated_velocity - trial['eye_velocity']
-
-    def assign_acceleration(self, filter_win=10):
-        """ Computes the acceleration from the velocity. """
-        for trial in self.trials:
-            trial['eye_acceleration'] = savgol_filter(trial['eye_velocity'], filter_win, 1, deriv=1, axis=1) * 1000
-
-
-    def align_timeseries_to_event(self, name_event_num_dict, event_num=0, target_num=1, occurrence_n=0, next_refresh=True):
-        """ Timeseries are defined starting at time 0 for current aligned event, this aligment subtracts the
-            Plexon event time relative to trial time from each time series.
-            The alignment event number is specified by the input dictionary name_event_num_dict
-            that contains trial names and returns the alignment event number. Trial names not
-            in this dictionary will NOT be aligned. If name_event_num_dict is an empty
-            dictionary, all trials will be aligned on event event_num (default 0)"""
-
-        if len(name_event_num_dict) == 0:
-            for t in self.trials:
-                if t['trial_name'] in name_event_num_dict:
-                    continue
-                name_event_num_dict[t['trial_name']] = event_num
-
-        for t in range(0, len(self.trials)):
-            if self.trials[t]['trial_name'] not in name_event_num_dict:
-                continue
-            event_number = name_event_num_dict[self.trials[t]['trial_name']]
-            if event_number > len(self.trials[t]['maestro_events']):
-                continue
-            if occurrence_n > len(self.trials[t]['maestro_events'][event_number]) - 1:
-                continue
-
-            if next_refresh:
-                # Find the difference between next refresh time and Maestro event time add it to Plexon event time
-                align_time = (self.trials[t]['plexon_events'][event_number][occurrence_n] +
-                              (self.trials[t]['targets'][target_num].get_next_refresh(self.trials[t]['maestro_events'][event_number][occurrence_n]) -
-                               self.trials[t]['maestro_events'][event_number][occurrence_n]))
-            else:
-                align_time = self.trials[t]['plexon_events'][event_number][occurrence_n]
-
-            # Adjust align time to be relative to trial start (using plexon STOP CODE!) rather than Plexon file time
-            align_time = self.trials[t]['duration_ms'] - (self.trials[t]['plexon_start_stop'][1] - align_time)
-
-            # Un-do old time series alignment, do new alignment and save it's time
-            self.trials[t]['time_series'] += self.trials[t]['time_series_alignment']
-            self.trials[t]['time_series'] -= align_time
-            self.trials[t]['time_series_alignment'] = align_time
-        # Update any neurons to new alignment
-        for n in range(0, len(self.neurons)):
-            self.neurons[n].align_spikes_to_session()
-
-    def align_timeseries_to_latency(self):
-        """ ."""
-        pass
-
-    def get_trial_index(self, trial_names, block_name=None, n_block_occurence=0):
-        """. """
-        if type(trial_names) == str:
-            trial_names = [trial_names]
-        if block_name is not None:
-            search_range = self.blocks[block_name]['trial_windows'][n_block_occurence]
-        else:
-            search_range = (0, len(self.trials))
-        trial_index = np.zeros(len(self.trials), dtype='bool')
-        if trial_names is None:
-            trial_index[search_range[0]:search_range[1]] = True
-        else:
-            for t in range(search_range[0], search_range[1]):
-                for t_name in trial_names:
-                    if self.trials[t]['trial_name'] == t_name:
-                        trial_index[t] = True
-        return trial_index
-
-    def condition_data_by_trial(self, trial_name, time_window, data_type,
-                                block_name=None, n_block_occurence=0):
-        """. """
-        trial_index = self.get_trial_index(trial_name, block_name, n_block_occurence)
-        trial_data = np.full((np.count_nonzero(trial_index), time_window[1]-time_window[0], 2), np.nan)
-        out_row = 0
-        for t in range(0, len(self.trials)):
-            if not trial_index[t]:
-                continue
-            time_index = self.trials[t]['time_series'].find_index_range(time_window[0], time_window[1])
-            if time_index is None:
-                # Entire trial window is beyond available data
-                trial_index[t] = False
-                continue
-            if round(self.trials[t]['time_series'].start) - time_window[0] > 0:
-                # Window start is beyond available data
-                out_start = round(self.trials[t]['time_series'].start) - time_window[0]
-            else:
-                out_start = 0
-            if round(self.trials[t]['time_series'].stop) - time_window[1] < 0:
-                # Window stop is beyond available data
-                out_stop = trial_data.shape[1] - (time_window[1] - round(self.trials[t]['time_series'].stop))
-            else:
-                out_stop = trial_data.shape[1]
-            trial_data[out_row, out_start:out_stop, 0:2] = self.trials[t][data_type][:, time_index].T
-
-            if self.nan_saccades:
-                for start, stop in self.trials[t]['saccade_windows']:
-                    # Align start/stop with desired offset
-                    # start += nan_sacc_lag
-                    # stop += nan_sacc_lag
-                    # Align start/stop with time index and window
-                    if stop > time_index[0] and stop < time_index[-1]:
-                        start = max(start, time_index[0])
-                    elif start > time_index[0] and start < time_index[-1]:
-                        stop = min(stop, time_index[-1])
-                    else:
-                        continue
-                    # Align start/stop with trial_data
-                    start += out_start - time_index[0]
-                    stop += out_start - time_index[0]
-                    trial_data[out_row, start:stop, :] = np.nan
-            out_row += 1
-        trial_data = trial_data[0:out_row, :, :]
-        return trial_data, trial_index
-
-    def target_condition_data_by_trial(self, trial_name, time_window, data_type,
-            target_number, block_name=None, n_block_occurence=0):
-        """. """
-        trial_index = self.get_trial_index(trial_name, block_name, n_block_occurence)
-        target_data = np.empty((np.count_nonzero(trial_index), time_window[1]-time_window[0], 2))
-        out_row = 0
-        for t in range(0, len(self.trials)):
-            if not trial_index[t]:
-                continue
-            time_index = self.trials[t]['time_series'].find_index_range(time_window[0], time_window[1])
-            if time_index is None:
-                # Entire trial window is beyond available data
-                trial_index[t] = False
-                continue
-            if round(self.trials[t]['time_series'].start) - time_window[0] > 0:
-                # Window start is beyond available data
-                out_start = round(self.trials[t]['time_series'].start) - time_window[0]
-            else:
-                out_start = 0
-            if round(self.trials[t]['time_series'].stop) - time_window[1] < 0:
-                # Window stop is beyond available data
-                out_stop = target_data.shape[1] - (time_window[1] - round(self.trials[t]['time_series'].stop))
-            else:
-                out_stop = target_data.shape[1]
-            target_data[out_row, out_start:out_stop, 0:2] = getattr(self.trials[t]['targets'][target_number],
-                                                                    data_type)[:, time_index].T
-            out_row += 1
-        target_data = target_data[0:out_row, :, :]
-        return target_data, trial_index
-
-    def nan_sacc_one_trial(trial_dict):
-        pass
+    def __getitem__(self, index):
+        try:
+            return self._trial_lists[key]
+        except AttributeError:
+            for k in self.data.keys():
+                if k == key:
+                    return self.data[k]
+            for k in self.events.keys():
+                if k == key:
+                    return self.events[k]
+            raise ValueError("Could not find value '{0}'.".format(key))
+        except TypeError:
+            raise TypeError("Quick references to attributes of Trial objects must be string.")
