@@ -1,4 +1,4 @@
-from SessionAnalysis import trial
+from SessionAnalysis.trial import ApparatusTrial, BehavioralTrial
 
 
 
@@ -144,7 +144,9 @@ def format_maestro_events(maestro_data, event_names_by_trial=None,
 
 
 def maestro_to_trial(maestro_data):
-    """ Convert maestro_data to format suitable for making t objects.
+    """ Convert maestro_data to format suitable for making Trial objects.
+    NOTE: Not clear this is useful at the moment, when specific conversion
+    functions below for apparatus and behavior should be used.
     """
     keep_keys = ['horizontal_eye_position',
                  'vertical_eye_position',
@@ -155,7 +157,7 @@ def maestro_to_trial(maestro_data):
                  'vertical_target_position',
                  'horizontal_target_velocity',
                  'vertical_target_velocity']
-    trial_dicts = []
+    trial_list = []
     for t in maestro_data:
         tdict = {}
         tdict['name'] = t['header']['name']
@@ -170,9 +172,9 @@ def maestro_to_trial(maestro_data):
                 tdict['data'][key] = t[key]
             for key in optn_keys:
                 tdict['data'][key] = t[key]
-        trial_dicts.append(tdict)
+        trial_list.append(tdict)
 
-    return trial_dicts
+    return trial_list
 
 
 def maestro_to_apparatus_trial(maestro_data, data_name="apparatus"):
@@ -194,19 +196,19 @@ def maestro_to_apparatus_trial(maestro_data, data_name="apparatus"):
         else:
             for key in optn_keys:
                 tdict['data'][key] = t[key]
-        trial_list.append(trial.ApparatusTrial(tdict, data_name))
+        trial_list.append(ApparatusTrial(tdict, data_name))
 
     return trial_list
 
 
-def maestro_to_behavior_trial(maestro_data):
+def maestro_to_behavior_trial(maestro_data, data_name="movement"):
     """ Convert maestro_data to format suitable for making BehaviorTrial
     objects. """
     keep_keys = ['horizontal_eye_position',
                  'vertical_eye_position',
                  'horizontal_eye_velocity',
                  'vertical_eye_velocity']
-    trial_dicts = []
+    trial_list = []
     for t in maestro_data:
         tdict = {}
         tdict['name'] = t['header']['name']
@@ -214,6 +216,6 @@ def maestro_to_behavior_trial(maestro_data):
         tdict['data'] = {}
         for key in keep_keys:
             tdict['data'][key] = t[key]
-        trial_dicts.append(tdict)
+        trial_list.append(BehavioralTrial(tdict, data_name))
 
-    return trial_dicts
+    return trial_list

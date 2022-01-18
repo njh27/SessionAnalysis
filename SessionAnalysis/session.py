@@ -162,10 +162,9 @@ class Session(dict):
 
     Parameters
     ----------
-    trial_data : python list
-        Each element of the list must contain a dictionary that specifies the
-        following trial attributes via its keys. These keys and data are
-        required to define a session.
+    trial_data : python list of Trial type objects
+        Each element of the list must contain an object of the Trial class
+        specified in the trial.py module.
         trial_name : string
             Name of the given trial. Will be used to reference trials of this
             type.
@@ -193,12 +192,10 @@ class Session(dict):
     def __init__(self, trial_data, session_name=None):
         """
         """
-        self.set_trial_data(trial_data)
+        self.add_trial_data(trial_data)
         self.session_name = session_name
         self.blocks = {}
         self.neurons = []
-        # Keys required for trial dictionaries
-        self._required_trial_keys = ["trial_name", "behavioral_data", "events"]
 
     def set_trial_data(self, trial_data):
         for t_ind, t in enumerate(trial_data):

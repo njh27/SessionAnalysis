@@ -128,7 +128,7 @@ class Trial(dict):
             for k in self.events.keys():
                 if k == key:
                     return self.events[k]
-            raise ValueError("Could not find value '{0}'.".formate(key))
+            raise ValueError("Could not find value '{0}'.".format(key))
         except TypeError:
             raise TypeError("Quick references to attributes of Trial objects must be string.")
         # if type(index) == tuple:
@@ -393,23 +393,28 @@ class BehavioralTrial(Trial):
         self.__data_alias__ = data_name
         Trial.__init__(self, trial_dict)
 
-    def __getitem__(self, index):
+    def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
-        if self.__data_alias__ in index:
-            if type(index) == tuple:
-                # Multiple attribute/indices input so split
-                attribute = index[0]
-                index = index[1:]
-                if len(index) == 1: index = index[0]
-            else:
-                attribute = index
-                index = None
-            if index is None:
-                return self.data
-            else:
-                return self.data[index]
+        if self.__data_alias__ == key:
+            return self.data
         else:
-            return Trial.__getitem__(self, index)
+            return Trial.__getitem__(self, key)
+        # # Use data alias as shortcut to indexing data
+        # if self.__data_alias__ in index:
+        #     if type(index) == tuple:
+        #         # Multiple attribute/indices input so split
+        #         attribute = index[0]
+        #         index = index[1:]
+        #         if len(index) == 1: index = index[0]
+        #     else:
+        #         attribute = index
+        #         index = None
+        #     if index is None:
+        #         return self.data
+        #     else:
+        #         return self.data[index]
+        # else:
+        #     return Trial.__getitem__(self, index)
 
     def __build_iterator__(self):
         iter_str = [x for x in self.__dict__.keys()]
@@ -473,23 +478,28 @@ class NeuronTrial(Trial):
         self.classif = classif
         Trial.__init__(self, trial_dict)
 
-    def __getitem__(self, index):
+    def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
-        if self.__data_alias__ in index:
-            if type(index) == tuple:
-                # Multiple attribute/indices input so split
-                attribute = index[0]
-                index = index[1:]
-                if len(index) == 1: index = index[0]
-            else:
-                attribute = index
-                index = None
-            if index is None:
-                return self.data
-            else:
-                return self.data[index]
+        if self.__data_alias__ == key:
+            return self.data
         else:
-            return Trial.__getitem__(self, index)
+            return Trial.__getitem__(self, key)
+        # # Use data alias as shortcut to indexing data
+        # if self.__data_alias__ in index:
+        #     if type(index) == tuple:
+        #         # Multiple attribute/indices input so split
+        #         attribute = index[0]
+        #         index = index[1:]
+        #         if len(index) == 1: index = index[0]
+        #     else:
+        #         attribute = index
+        #         index = None
+        #     if index is None:
+        #         return self.data
+        #     else:
+        #         return self.data[index]
+        # else:
+        #     return Trial.__getitem__(self, index)
 
     def __build_iterator__(self):
         iter_str = [x for x in self.__dict__.keys()]
