@@ -222,6 +222,33 @@ class Session(list):
 
         return None
 
+    def get_data(self, data_name, series_name, trials, time):
+
+        data_out = []
+
+        # trials = self.__parse_trials_to_indices(trials)
+        # time = self.__parse_time_to_indices(time)
+        for t in trials:
+            trial_dseries = self._trial_lists[data_name][t][series_name]
+            trial_tinds = self._trial_lists[data_name][t].timeseries.find_index_range(time[0], time[1])
+            data_out.append(trial_dseries[trial_tinds])
+        return data_out
+
+    def __parse_trials_to_indices(self, trials):
+        """ Can accept string inputs indicating block names, or slices of indices,
+        or numpy array of indices, or list of indices and outputs a corresponding
+        useful index for getting the corresponding trials."""
+        pass
+
+    def __parse_time_to_indices(self, time):
+        """ Accepts a 2 element time window, slice of times or array/list of
+        times and turns them into the corresponding indices using the
+        timeseries of the trial. """
+        pass
+
+
+
+
     def add_neuron(self, Neuron):
         """. """
         Neuron.join_session(self)
@@ -291,7 +318,7 @@ class Session(list):
     def keys(self):
         return self.__data_fields
 
-    def __getitem__(self, index):
+    def __getitem__(self, key):
         try:
             return self._trial_lists[key]
         except AttributeError:

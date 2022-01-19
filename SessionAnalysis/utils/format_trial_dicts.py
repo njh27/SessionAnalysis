@@ -177,7 +177,8 @@ def maestro_to_trial(maestro_data):
     return trial_list
 
 
-def maestro_to_apparatus_trial(maestro_data, data_name="apparatus"):
+def maestro_to_apparatus_trial(maestro_data, dt_data, start_data=0,
+                                data_name="apparatus"):
     """ Convert maestro_data to format suitable for making ApparatusTrial
     objects. """
     optn_keys = ['horizontal_target_position',
@@ -192,16 +193,20 @@ def maestro_to_apparatus_trial(maestro_data, data_name="apparatus"):
         tdict['events'] = t['events']
         tdict['data'] = {}
         if is_compressed(t):
-            tdict['data']['targets'] = t['targets']
+            # Need to format list of targets to dictionary of targets
+            for n_key in range(0, len(t['targets'])):
+                t_key = "target" + str(n_key)
+                tdict['data'][t_key] = t['targets'][n_key]
         else:
             for key in optn_keys:
                 tdict['data'][key] = t[key]
-        trial_list.append(ApparatusTrial(tdict, data_name))
+        trial_list.append(ApparatusTrial(tdict, dt_data, start_data, data_name))
 
     return trial_list
 
 
-def maestro_to_behavior_trial(maestro_data, data_name="movement"):
+def maestro_to_behavior_trial(maestro_data, dt_data, start_data=0,
+                                data_name="movement"):
     """ Convert maestro_data to format suitable for making BehaviorTrial
     objects. """
     keep_keys = ['horizontal_eye_position',
@@ -216,6 +221,6 @@ def maestro_to_behavior_trial(maestro_data, data_name="movement"):
         tdict['data'] = {}
         for key in keep_keys:
             tdict['data'][key] = t[key]
-        trial_list.append(BehavioralTrial(tdict, data_name))
+        trial_list.append(BehavioralTrial(tdict, dt_data, start_data, data_name))
 
     return trial_list

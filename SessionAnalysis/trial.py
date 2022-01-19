@@ -2,6 +2,8 @@
 "neuron", and "behavior" trial types inherit. Objects of this class are
 fed into the Session class for indexing and analysis. """
 
+from SessionAnalysis.timeseries import Timeseries
+
 
 
 class Trial(dict):
@@ -27,7 +29,9 @@ class Trial(dict):
             Dictionary containing time dependent data such as stimulus and/or
             behavioral movement data. Each key of the dictionary specifies a
             timeseries. The key names for this dictionary can be used later to
-            reference and extract their corresponding data.
+            reference and extract their corresponding data. Each timeseries
+            must be on the same timescale and sampling rate (dt between
+            indices).
         events : dict
             Dictionary where each key names an event. Each event is a time
             within the session on which the timeseries data (e.g. neural and
@@ -35,23 +39,31 @@ class Trial(dict):
             agreement with the time scheme of the timeseries data, i.e. starting
             the beginning of each trial t=0 or relative to the entire session.
             Event names can be used to reference events for alignment.
+    dt_data : int or float
+        The delta time step between samples (indices) for all data input in the
+        data dictionary. Units should be the same as in events dict as these
+        can be used to align the timeseries.
+    start_data : int or float (optional)
+        By default it is assumed that each timeseries in data starts at t=0
+        and proceeds in steps of dt_data until the end of the data series. This
+        parameter sets time value of the first sample.
 
     Returns
     -------
     object of Trial class
     """
 
-    def __init__(self, trial_dict):
+    def __init__(self, trial_dict, dt_data, start_data=0):
         """
         """
         # Keys required for trial dictionaries
         self.__required_trial_keys__ = ["name", "data", "events"]
-        self._set_trial_data(trial_dict)
+        self._set_trial_data(trial_dict, dt_data, start_data)
         self._check_trial_data()
         # For defining iterator over attributes
         self.__build_iterator__()
 
-    def _set_trial_data(self, trial_dict):
+    def _set_trial_data(self, trial_dict, dt_data, start_data):
         if type(trial_dict) != dict:
             raise TypeError("Input trial_dict must be a type dict.")
 
@@ -94,6 +106,25 @@ class Trial(dict):
             elif rk == "events":
                 if type(trial_dict[rk]) != dict:
                     raise ValueError("Input trial_dict key 'events' must be a dictionary that maps event name to the time of the event.")
+
+        d_len = None
+        for d_key in self.data.keys():
+            try:
+                if d_len is None:
+                    d_len = len(self.data[d_key])
+                else:
+                    if d_len != len(self.data[d_key]):
+                        raise ValueError("Each data series must have the same lenght!. Data key '{0}' does not match previous.".format(d_key))
+            except TypeError:
+                raise TypeError("Each key in dictionary 'data' must return an object with valid __len__ function.")
+        n_steps = int(round((d_len - start_data) / dt_data))
+        if n_steps != d_len:
+            raise ValueError("Length of input data does not match number of steps expected from inputs dt_data and start_data.")
+        stop_data = start_data + dt_data * n_steps
+        self.__timeseries = Timeseries(start_data, stop_data, dt_data)
+        self.__aligntime = start_data
+        self.__alignevent = None
+
         return None
 
     def _check_trial_data(self):
@@ -313,13 +344,13 @@ class ApparatusTrial(Trial):
     object of ApparatusTrial class
     """
 
-    def __init__(self, trial_dict, data_name="apparatus"):
+    def __init__(self, trial_dict, dt_data, start_data=0, data_name="apparatus"):
         """
         """
         if type(data_name) != str:
             raise ValueError("ApparatusTrial object must have a string for data_name.")
         self.__data_alias__ = data_name
-        Trial.__init__(self, trial_dict)
+        Trial.__init__(self, trial_dict, dt_data, start_data)
 
     def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
@@ -391,13 +422,13 @@ class BehavioralTrial(Trial):
     object of BehavioralTrial class
     """
 
-    def __init__(self, trial_dict, data_name="behavior"):
+    def __init__(self, trial_dict, dt_data, start_data=0, data_name="behavior"):
         """
         """
         if type(data_name) != str:
             raise ValueError("BehavioralTrial object must have a string for data_name.")
         self.__data_alias__ = data_name
-        Trial.__init__(self, trial_dict)
+        Trial.__init__(self, trial_dict, dt_data, start_data)
 
     def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
@@ -475,7 +506,7 @@ class NeuronTrial(Trial):
     object of NeuronTrial class
     """
 
-    def __init__(self, trial_dict, data_name="spikes", classif=None):
+    def __init__(self, trial_dict, dt_data, start_data=0, data_name="spikes", classif=None):
         """
         """
         if type(data_name) != str:
