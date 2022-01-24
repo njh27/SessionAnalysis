@@ -195,46 +195,65 @@ class Session(list):
         Creates an instantiation of the Session class.
     """
 
-    def __init__(self, trial_data, session_name=None, data_name=None):
+    def __init__(self, trial_data, session_name=None, data_type=None):
         """
         """
         self._trial_lists = {}
         self._trial_lists['__main'] = ConjoinedList(trial_data)
-        if data_name is None:
+        if data_type is None:
             # Use data name of first trial as default
-            data_name = trial_data[0].__data_alias__
-        self.__data_fields = [data_name]
-        self._trial_lists[data_name] = self._trial_lists['__main']
+            data_type = trial_data[0].__data_alias__
+        self.__data_fields = [data_type]
+        # The first data listed is hard coded here as the parent of conjoined lists
+        self._trial_lists[data_type] = self._trial_lists['__main']
+        self.__data_names = {}
+        for t in trial_data:
+            for k in t['data'].keys():
+                self.__data_names[k] = data_type
         self.session_name = session_name
         self.blocks = {}
         self.neurons = []
 
-    def add_trial_data(self, trial_data, data_name=None):
-        if data_name is None:
+    def add_trial_data(self, trial_data, data_type=None):
+        if data_type is None:
             # Use data name of first trial as default
-            data_name = trial_data[0].__data_alias__
-        if data_name in self.__data_fields:
-            raise ValueError("Session already has data with name {0}.".format(data_name))
-        self.__data_fields.append(data_name)
+            data_type = trial_data[0].__data_alias__
+        if data_type in self.__data_fields:
+            raise ValueError("Session already has data type {0}.".format(data_type))
+        # Check to update data_names so we can find their associated lis of
+        # trials quickly later (e.g. in get_data)
+        new_names = set()
+        for t in trial_data:
+            for k in t['data'].keys():
+                new_names.add(k)
+        for nn in new_names:
+            if nn in self.__data_names.keys():
+                raise ValueError("Session already has data name {0}.".format(nn))
+
+        self.__data_fields.append(data_type)
+        for nn in new_names:
+            self.__data_names[nn] = data_type
         # Save dictionary reference to this trial set and conjoin to __main
-        self._trial_lists[data_name] = ConjoinedList(trial_data)
-        self._trial_lists['__main'].add_child(self._trial_lists[data_name])
+        self._trial_lists[data_type] = ConjoinedList(trial_data)
+        self._trial_lists['__main'].add_child(self._trial_lists[data_type])
 
         return None
 
     def get_data(self, data_name, series_name, trials, time):
 
         data_out = []
+        try:
+            d_type = self.__data_names[data_name]
+        except KeyError:
+            raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
 
-        # trials = self.__parse_trials_to_indices(trials)
-        # time = self.__parse_time_to_indices(time)
         for t in trials:
-            trial_dseries = self._trial_lists[data_name][t][series_name]
-            trial_obj = self._trial_lists[data_name][t]
+            trial_obj = self._trial_lists[d_type][t]
             trial_ts = trial_obj._timeseries
             trial_tinds = trial_ts.find_index_range(time[0], time[1])
-            # trial_tinds = self._trial_lists[data_name][t].__timeseries.find_index_range(time[0], time[1])
-            data_out.append(trial_dseries[trial_tinds])
+            # data_out.append(trial_obj[data_name][series_name][trial_tinds])
+            data_out.append(trial_tinds)
+
         return data_out
 
     def __parse_trials_to_indices(self, trials):

@@ -57,22 +57,16 @@ class Timeseries(object):
         in the timeseries. If the value is not found, None is returned
         """
         if value < self.start or value > self.stop:
-            return None
+            raise IndexError("Index for value {0} is out of timeseries range.".format(value))
         index = int(round((value - self.start) / self.dt))
         return index
 
     def find_index_range(self, start, stop):
         """Returns a range of indices corresponding to a time window"""
-        if start > np.floor(self.stop) - 1:
-            return None
-        if stop < np.ceil(self.start) + 1:
-            return None
+        if start > stop:
+            raise IndexError("Start value must be <= stop value.")
         t1 = self.find_index(start)
-        if t1 is None:
-            t1 = 0
         t2 = self.find_index(stop)
-        if t2 is None:
-            t2 = self.n
         return np.arange(t1, t2)
 
     def __len__(self):

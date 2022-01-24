@@ -253,7 +253,7 @@ class Trial(dict):
     def __next__(self):
         next_item = next(self.__myiterator__)
         # Do not return 'hidden' attributes/keys
-        while next_item[0:2] == "__":
+        while next_item[0:1] == "_":
             next_item = next(self.__myiterator__)
         return next_item
 
