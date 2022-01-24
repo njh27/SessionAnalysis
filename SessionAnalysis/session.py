@@ -230,7 +230,10 @@ class Session(list):
         # time = self.__parse_time_to_indices(time)
         for t in trials:
             trial_dseries = self._trial_lists[data_name][t][series_name]
-            trial_tinds = self._trial_lists[data_name][t].timeseries.find_index_range(time[0], time[1])
+            trial_obj = self._trial_lists[data_name][t]
+            trial_ts = trial_obj._timeseries
+            trial_tinds = trial_ts.find_index_range(time[0], time[1])
+            # trial_tinds = self._trial_lists[data_name][t].__timeseries.find_index_range(time[0], time[1])
             data_out.append(trial_dseries[trial_tinds])
         return data_out
 

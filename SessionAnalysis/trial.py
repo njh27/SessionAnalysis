@@ -57,7 +57,7 @@ class Trial(dict):
         """
         """
         # Keys required for trial dictionaries
-        self.__required_trial_keys__ = ["name", "data", "events"]
+        self._required_trial_keys_ = ["name", "data", "events"]
         self._set_trial_data(trial_dict, dt_data, start_data)
         self._check_trial_data()
         # For defining iterator over attributes
@@ -67,7 +67,7 @@ class Trial(dict):
         if type(trial_dict) != dict:
             raise TypeError("Input trial_dict must be a type dict.")
 
-        rtk_copy = [x for x in self.__required_trial_keys__]
+        rtk_copy = [x for x in self._required_trial_keys_]
         for tdk in trial_dict.keys():
             # Check for required keys and assign them as lower case to self
             tdk_required = False
@@ -87,7 +87,7 @@ class Trial(dict):
                         tdk_required = True
                         break
                     else:
-                        # This shouldn't happen unless __required_trial_keys__ is out of date?
+                        # This shouldn't happen unless _required_trial_keys_ is out of date?
                         raise ValueError("Required key matched but not specified during parse")
             if not tdk_required:
                 # This is a key that was input but not required
@@ -96,7 +96,7 @@ class Trial(dict):
         # Check input now that we know the number of required keys found
         if len(rtk_copy) > 0:
             raise KeyError("Input trial_dict must have all required keys. Key(s) '{0}' not found.".format(rtk_copy))
-        for rk in self.__required_trial_keys__:
+        for rk in self._required_trial_keys_:
             if rk == "name":
                 if type(trial_dict[rk]) != str:
                     raise ValueError("Input trial_dict key 'name' must be a string of the trial name.")
@@ -121,9 +121,9 @@ class Trial(dict):
         if n_steps != d_len:
             raise ValueError("Length of input data does not match number of steps expected from inputs dt_data and start_data.")
         stop_data = start_data + dt_data * n_steps
-        self.__timeseries = Timeseries(start_data, stop_data, dt_data)
-        self.__aligntime = start_data
-        self.__alignevent = None
+        self._timeseries = Timeseries(start_data, stop_data, dt_data)
+        self._aligntime = start_data
+        self._alignevent = None
 
         return None
 
@@ -215,14 +215,14 @@ class Trial(dict):
             return False
 
     def __delattr__(self, attribute):
-        if attribute in self.__required_trial_keys__:
+        if attribute in self._required_trial_keys_:
             raise ValueError("Cannot delete attribute '{0}' from objects of Trial class.".format(attribute))
         else:
             super().__delattr__(attribute)
         return None
 
     def __delitem__(self, item):
-        if item in self.__required_trial_keys__:
+        if item in self._required_trial_keys_:
             raise ValueError("Cannot delete item '{0}' from objects of Trial class.".format(item))
         try:
             self.__delattr__(item)
