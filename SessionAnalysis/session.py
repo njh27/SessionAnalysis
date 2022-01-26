@@ -239,8 +239,12 @@ class Session(list):
 
         return None
 
-    def get_data(self, data_name, series_name, trials, time):
-
+    def get_data_list(self, data_name, series_name, trials, time):
+        """ Returns a list of length trials, where each element of the list
+        contains the timeseries data in the requested time window. If the time
+        window exceeds the valid range of the timeseries, data are excluded.
+        Thus the output list is NOT necessarily in 1-1 correspondence with the
+        input trials sequence! """
         data_out = []
         try:
             d_type = self.__data_names[data_name]
@@ -250,11 +254,33 @@ class Session(list):
         for t in trials:
             trial_obj = self._trial_lists[d_type][t]
             trial_ts = trial_obj._timeseries
-            trial_tinds = trial_ts.find_index_range(time[0], time[1])
-            # data_out.append(trial_obj[data_name][series_name][trial_tinds])
-            data_out.append(trial_tinds)
+            try:
+                trial_tinds = trial_ts.find_index_range(time[0], time[1])
+            except IndexError:
+                continue
+            data_out.append(trial_obj[data_name][series_name][trial_tinds])
 
         return data_out
+
+    def get_data_array(self, data_name, series_name, trials, time):
+        """ Returns a n trials by m time points numpy array of the requested
+        timeseries data. Missing data points are filled in with np.nan. """
+        data_out = []
+        try:
+            d_type = self.__data_names[data_name]
+        except KeyError:
+            raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
+
+        for t in trials:
+            trial_obj = self._trial_lists[d_type][t]
+            trial_ts = trial_obj._timeseries
+            print(trial_ts.start, trial_ts.stop)
+            valid_tinds, out_inds = trial_ts.valid_index_range(time[0], time[1])
+            t_data = np.full(out_inds.shape[0], np.nan)
+            t_data[out_inds] = trial_obj[data_name][series_name][valid_tinds]
+            data_out.append(t_data)
+
+        return np.vstack(data_out)
 
     def __parse_trials_to_indices(self, trials):
         """ Can accept string inputs indicating block names, or slices of indices,

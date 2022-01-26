@@ -61,13 +61,60 @@ class Timeseries(object):
         index = int(round((value - self.start) / self.dt))
         return index
 
+    def find_indices(self, values):
+        """Returns the indices for a numpy array or list of values. This is
+        just a convenience function that iteratively calls "find_index". If
+        a consecutive range of indices are desired, using "find_index_range"
+        should be much faster. """
+        indices = np.zeros(len(values), dtype=np.int32)
+        for ind, v in enumerate(values):
+            indices[ind] = self.find_index(v)
+        return indices
+
     def find_index_range(self, start, stop):
         """Returns a range of indices corresponding to a time window"""
         if start > stop:
             raise IndexError("Start value must be <= stop value.")
         t1 = self.find_index(start)
         t2 = self.find_index(stop)
-        return np.arange(t1, t2)
+        return np.arange(t1, t2, dtype=np.int32)
+
+    def valid_index_range(self, start, stop):
+        """Returns a vector of the indices that are present in the timeseries
+        within the requested window. Also returns a boolean array indicating
+        the indices of the valid values in an array with size corresponding to
+        the requested start/stop time window. This can allow consistent indexing
+        of outputs at an identical shape among multiple timeseries with
+        different lengths. """
+        # Force to find what the array size should be if all values were present in timeseries
+        out_ind_start = int(round((start) / self.dt))
+        out_ind_stop = int(round((stop) / self.dt))
+        pseudo_values = np.arange(start, stop+self.dt, self.dt)
+        out_inds = np.zeros((out_ind_stop - out_ind_start), dtype='bool')
+        if start > stop:
+            raise IndexError("Start value must be <= stop value.")
+        if (start >= self.stop) or (stop <= self.start):
+            # Requested range is totally beyond the timeseries
+            return np.empty(0, dtype=np.int32), out_inds
+        if start <= self.start:
+            start = self.start
+        if stop >= self.stop:
+            stop = self.stop
+        t1 = self.find_index(start)
+        t2 = self.find_index(stop)
+        valid_inds = np.arange(t1, t2, dtype=np.int32)
+        out_start = np.argmax(pseudo_values >= start)
+        if stop >= pseudo_values[-1]:
+            out_stop = out_inds.shape[0]
+        else:
+            # Use strictly greater than so slicing indices are valid
+            out_stop = np.argmax(pseudo_values >= stop)
+        out_inds[out_start:out_stop] = True
+        if (out_stop - out_start) != len(valid_inds):
+            print(pseudo_values[0], pseudo_values[-1], start, stop, out_start, out_stop, t1, t2, self.start, self.stop)
+            raise RuntimeError("Number of out inds indices does not match valid inds. Could be a rounding error or coding error.")
+
+        return valid_inds, out_inds
 
     def __len__(self):
         """Override the length of this timeseries"""
