@@ -49,12 +49,6 @@ class ConjoinedList(MutableSequence):
         self.__check_match_IDs__()
         return
 
-    def __delete__(self):
-        print("IN THE DELETE")
-
-    def __del__(self):
-        print("IN THE DEL")
-
     def __non_recursive_delitem__(self, index):
         del self.__list__[index]
         del self._element_ID[index]
@@ -203,22 +197,23 @@ class Session(list):
         if data_type is None:
             # Use data name of first trial as default
             data_type = trial_data[0].__data_alias__
-        self.__data_fields = [data_type]
         # The first data listed is hard coded here as the parent of conjoined lists
         self._trial_lists[data_type] = self._trial_lists['__main']
-        self.__data_names = {}
+        self.__series_names = {}
         for t in trial_data:
             for k in t['data'].keys():
-                self.__data_names[k] = data_type
+                self.__series_names[k] = data_type
         self.session_name = session_name
         self.blocks = {}
         self.neurons = []
 
     def add_trial_data(self, trial_data, data_type=None):
+        """ Adds a new list of trial dictionaries that will be conjoined with
+        the existing list initialized via __init__. """
         if data_type is None:
             # Use data name of first trial as default
             data_type = trial_data[0].__data_alias__
-        if data_type in self.__data_fields:
+        if data_type in self._trial_lists:
             raise ValueError("Session already has data type {0}.".format(data_type))
         # Check to update data_names so we can find their associated lis of
         # trials quickly later (e.g. in get_data)
@@ -227,12 +222,11 @@ class Session(list):
             for k in t['data'].keys():
                 new_names.add(k)
         for nn in new_names:
-            if nn in self.__data_names.keys():
+            if nn in self.__series_names.keys():
                 raise ValueError("Session already has data name {0}.".format(nn))
 
-        self.__data_fields.append(data_type)
         for nn in new_names:
-            self.__data_names[nn] = data_type
+            self.__series_names[nn] = data_type
         # Save dictionary reference to this trial set and conjoin to __main
         self._trial_lists[data_type] = ConjoinedList(trial_data)
         self._trial_lists['__main'].add_child(self._trial_lists[data_type])
@@ -244,40 +238,37 @@ class Session(list):
         contains the timeseries data in the requested time window. If the time
         window exceeds the valid range of the timeseries, data are excluded.
         Thus the output list is NOT necessarily in 1-1 correspondence with the
-        input trials sequence! """
+        input trials sequence!
+        Call "data_names()" to get a list of available data names. """
         data_out = []
-        try:
-            d_type = self.__data_names[data_name]
-        except KeyError:
+        if data_name not in self._trial_lists.keys():
             raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
 
         for t in trials:
-            trial_obj = self._trial_lists[d_type][t]
+            trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
             try:
                 trial_tinds = trial_ts.find_index_range(time[0], time[1])
             except IndexError:
                 continue
-            data_out.append(trial_obj[data_name][series_name][trial_tinds])
+            data_out.append(trial_obj['data'][series_name][trial_tinds])
 
         return data_out
 
     def get_data_array(self, data_name, series_name, trials, time):
         """ Returns a n trials by m time points numpy array of the requested
-        timeseries data. Missing data points are filled in with np.nan. """
+        timeseries data. Missing data points are filled in with np.nan.
+        Call "data_names()" to get a list of available data names. """
         data_out = []
-        try:
-            d_type = self.__data_names[data_name]
-        except KeyError:
+        if data_name not in self._trial_lists.keys():
             raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
 
         for t in trials:
-            trial_obj = self._trial_lists[d_type][t]
+            trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
-            print(trial_ts.start, trial_ts.stop)
             valid_tinds, out_inds = trial_ts.valid_index_range(time[0], time[1])
             t_data = np.full(out_inds.shape[0], np.nan)
-            t_data[out_inds] = trial_obj[data_name][series_name][valid_tinds]
+            t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
             data_out.append(t_data)
 
         return np.vstack(data_out)
@@ -293,6 +284,25 @@ class Session(list):
         times and turns them into the corresponding indices using the
         timeseries of the trial. """
         pass
+
+    def data_names(self):
+        """Provides a list of the available data names. """
+        return [x for x in self.__series_names.keys()]
+
+    def series_names(self, data_name):
+        """Provides a list of the available data series names under the given
+        data_name. """
+        series_names = set()
+        try:
+            d_type = self.__series_names[data_name]
+        except KeyError:
+            raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
+
+        # Iterate all trial objects under data_name "d_type"
+        for t in self._trial_lists[d_type]:
+            for k in t[data_name].keys():
+                series_names.add(k)
+        return series_names
 
 
 
@@ -364,7 +374,7 @@ class Session(list):
             return default
 
     def keys(self):
-        return self.__data_fields
+        return self.__data_names
 
     def __getitem__(self, key):
         try:

@@ -177,10 +177,10 @@ def maestro_to_trial(maestro_data):
     return trial_list
 
 
-def maestro_to_apparatus_trial(maestro_data, dt_data, start_data=0,
+def maestro_to_apparatus_trial(maestro_data, target_num, dt_data, start_data=0,
                                 data_name="apparatus"):
     """ Convert maestro_data to format suitable for making ApparatusTrial
-    objects. """
+    objects for a single target object indexed by "target_num". """
     optn_keys = ['horizontal_target_position',
                  'vertical_target_position',
                  'horizontal_target_velocity',
@@ -193,10 +193,8 @@ def maestro_to_apparatus_trial(maestro_data, dt_data, start_data=0,
         tdict['events'] = t['events']
         tdict['data'] = {}
         if is_compressed(t):
-            # Need to format list of targets to dictionary of targets
-            for n_key in range(0, len(t['targets'])):
-                t_key = "target" + str(n_key)
-                tdict['data'][t_key] = t['targets'][n_key]
+            # Need to format list of targets to dictionary of 1 target
+            tdict['data'] = t['targets'][target_num]
         else:
             for key in optn_keys:
                 tdict['data'][key] = t[key]

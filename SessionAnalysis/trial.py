@@ -3,6 +3,7 @@
 fed into the Session class for indexing and analysis. """
 
 from SessionAnalysis.timeseries import Timeseries
+from ReadMaestro.target import MaestroTarget
 
 
 
@@ -101,7 +102,7 @@ class Trial(dict):
                 if type(trial_dict[rk]) != str:
                     raise ValueError("Input trial_dict key 'name' must be a string of the trial name.")
             elif rk == "data":
-                if type(trial_dict[rk]) != dict:
+                if (type(trial_dict[rk]) != dict) and (type(trial_dict[rk]) != MaestroTarget):
                     raise ValueError("Input trial_dict key 'data' must be a dictionary that maps data name/type to the data timeseries.")
             elif rk == "events":
                 if type(trial_dict[rk]) != dict:
@@ -109,14 +110,19 @@ class Trial(dict):
 
         d_len = None
         for d_key in self.data.keys():
-            try:
-                if d_len is None:
-                    d_len = len(self.data[d_key])
-                else:
-                    if d_len != len(self.data[d_key]):
-                        raise ValueError("Each data series must have the same lenght!. Data key '{0}' does not match previous.".format(d_key))
-            except TypeError:
-                raise TypeError("Each key in dictionary 'data' must return an object with valid __len__ function.")
+            # Only need to check data lengths for things that are not MaestroTargets
+            if type(self.data) != MaestroTarget:
+                try:
+                    if d_len is None:
+                        d_len = len(self.data[d_key])
+                    else:
+                        if d_len != len(self.data[d_key]):
+                            raise ValueError("Each data series must have the same lenght!. Data key '{0}' does not match previous.".format(d_key))
+                except TypeError:
+                    raise TypeError("Each key in dictionary 'data' must return an object with valid __len__ function.")
+            else:
+                # Use MaestroTarget length
+                d_len = len(self.data)
         n_steps = int(round((d_len - start_data) / dt_data))
         if n_steps != d_len:
             raise ValueError("Length of input data does not match number of steps expected from inputs dt_data and start_data.")
