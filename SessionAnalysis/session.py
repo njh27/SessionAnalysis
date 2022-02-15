@@ -1,13 +1,51 @@
 import numpy as np
-from scipy.stats import mode
-from scipy.signal import savgol_filter
-from numpy.linalg import norm
 
 
 
 class ConjoinedMismatchError(Exception):
     # Dummy exception class for a potential problem with list matching
     pass
+
+
+class Window(object):
+    """ Very simple class indicating that two numbers should be treated as a
+    window, or range, for creating indices with step size 1. """
+    def __init__(self, start=None, stop=None):
+        if start is None:
+            raise ValueError("No values input for start.")
+        try:
+            # Check if start has more than 1 element via len()
+            len(start)
+            is_num = False # Not a num if it has len
+        except TypeError:
+            is_num = True
+        if not is_num:
+            if (len(start) == 2) and (stop is None):
+                self.start = int(start[0])
+                self.stop = int(start[1])
+            elif (len(start) >= 2) and (stop is not None):
+                raise ValueError("Too many values input for start and stop.")
+            elif (len(start) == 1) and (stop is None):
+                raise ValueError("Must input values for both start and stop.")
+            else:
+                raise ValueError("Unrecognized start stop contingency")
+        else:
+            self.start = int(start)
+            self.stop = int(stop)
+        if self.stop <= self.start:
+            raise ValueError("Input stop window must be greater than start. Current start = {0} and stop = {1}.".format(self.start, self.stop))
+
+    def __getitem__(self, index):
+        if index == 0:
+            return self.start
+        elif index == 1:
+            return self.stop
+        else:
+            raise IndexError("Window objects have 2 indices, 0 and 1, for start and stop but index '{0}' was requested.".format(index))
+
+    def __len__(self):
+        return 2
+
 
 from collections.abc import MutableSequence
 class ConjoinedList(MutableSequence):
@@ -142,7 +180,7 @@ class ConjoinedList(MutableSequence):
         return None
 
 
-class Session(list):
+class Session(dict):
     """ A class containing trials and their associated timeseries and events
     to allow behavioral and neural analysis of specific trials from an
     experimental session.
@@ -233,7 +271,7 @@ class Session(list):
 
         return None
 
-    def get_data_list(self, data_name, series_name, trials, time):
+    def get_data_list(self, series_name, trials, time):
         """ Returns a list of length trials, where each element of the list
         contains the timeseries data in the requested time window. If the time
         window exceeds the valid range of the timeseries, data are excluded.
@@ -241,10 +279,9 @@ class Session(list):
         input trials sequence!
         Call "data_names()" to get a list of available data names. """
         data_out = []
-        if data_name not in self._trial_lists.keys():
-            raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
-
-        for t in trials:
+        data_name = self.__series_names[series_name]
+        t_inds = self.__parse_trials_to_indices(trials)
+        for t in t_inds:
             trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
             try:
@@ -255,15 +292,14 @@ class Session(list):
 
         return data_out
 
-    def get_data_array(self, data_name, series_name, trials, time):
+    def get_data_array(self, series_name, trials, time):
         """ Returns a n trials by m time points numpy array of the requested
         timeseries data. Missing data points are filled in with np.nan.
         Call "data_names()" to get a list of available data names. """
         data_out = []
-        if data_name not in self._trial_lists.keys():
-            raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
-
-        for t in trials:
+        data_name = self.__series_names[series_name]
+        t_inds = self.__parse_trials_to_indices(trials)
+        for t in t_inds:
             trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
             valid_tinds, out_inds = trial_ts.valid_index_range(time[0], time[1])
@@ -273,11 +309,33 @@ class Session(list):
 
         return np.vstack(data_out)
 
+    def _get_blocks(self, block_name):
+        """Tries to get the trial indices associated with the specified block
+        name string and throws a more appropriate error during failure. """
+        try:
+            t_block = self.blocks[block_name]
+        except KeyError:
+            raise KeyError("Session object has no block named {0}.".format(block_name))
+        return t_block
+
     def __parse_trials_to_indices(self, trials):
-        """ Can accept string inputs indicating block names, or slices of indices,
+        """ Can accept string inputs indicating block names, or slices otypef indices,
         or numpy array of indices, or list of indices and outputs a corresponding
         useful index for getting the corresponding trials."""
-        pass
+        if type(trials) == slice:
+            # Return the slice of all trial indices
+            t_inds = np.arange(0, len(self), dtype=np.int32)
+            t_inds = t_inds[trials]
+        elif (type(trials) == np.ndarray) or (type(trials) == list):
+            t_inds = np.int32(trials)
+        elif type(trials) == Window:
+            t_inds = np.arange(trials[0], trials[1], dtype=np.int32)
+        elif type(trials) == str:
+            trials = self._get_blocks[trials]
+            if type(trials) == str:
+                raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
+            t_inds = self.__parse_trials_to_indices(trials)
+        return t_inds
 
     def __parse_time_to_indices(self, time):
         """ Accepts a 2 element time window, slice of times or array/list of
@@ -287,22 +345,12 @@ class Session(list):
 
     def data_names(self):
         """Provides a list of the available data names. """
-        return [x for x in self.__series_names.keys()]
+        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
 
-    def series_names(self, data_name):
+    def series_names(self):
         """Provides a list of the available data series names under the given
         data_name. """
-        series_names = set()
-        try:
-            d_type = self.__series_names[data_name]
-        except KeyError:
-            raise KeyError("Session does not have a trial dataset with data name {0}.".format(data_name))
-
-        # Iterate all trial objects under data_name "d_type"
-        for t in self._trial_lists[d_type]:
-            for k in t[data_name].keys():
-                series_names.add(k)
-        return series_names
+        return [x for x in self.__series_names.keys()]
 
 
 
@@ -374,18 +422,12 @@ class Session(list):
             return default
 
     def keys(self):
-        return self.__data_names
+        raise AttributeError("Session object has no attribute 'keys()'. Use 'data_names()' or 'series_names' attribute instead.")
 
     def __getitem__(self, key):
         try:
             return self._trial_lists[key]
         except AttributeError:
-            for k in self.data.keys():
-                if k == key:
-                    return self.data[k]
-            for k in self.events.keys():
-                if k == key:
-                    return self.events[k]
             raise ValueError("Could not find value '{0}'.".format(key))
         except TypeError:
             raise TypeError("Quick references to attributes of Trial objects must be string.")
