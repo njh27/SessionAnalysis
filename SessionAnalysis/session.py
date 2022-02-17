@@ -180,7 +180,7 @@ class ConjoinedList(MutableSequence):
         return None
 
 
-class Session(dict):
+class Session(object):
     """ A class containing trials and their associated timeseries and events
     to allow behavioral and neural analysis of specific trials from an
     experimental session.
@@ -202,7 +202,8 @@ class Session(dict):
         specified in the trial.py module. This is not explicitly checked
         because double imports can confuse checking so undefined errors could
         result if other types are used. The first list of trial objects will
-        be treated as the parent for any future trial sets added.
+        be treated as the parent for any future trial sets added. This list
+        will also be used for any queried metadata, like trial name.
         trial_name : string
             Name of the given trial. Will be used to reference trials of this
             type.
@@ -412,22 +413,13 @@ class Session(dict):
     def __len__(self):
         return len(self._trial_lists['__main'])
 
-    def get(self, key):
-        return self.__getitem__(key)
-
-    def setdefault(self, key, default=None):
-        try:
-            return self.get(key)
-        except:
-            return default
-
-    def keys(self):
-        raise AttributeError("Session object has no attribute 'keys()'. Use 'data_names()' or 'series_names' attribute instead.")
-
-    def __getitem__(self, key):
-        try:
-            return self._trial_lists[key]
-        except AttributeError:
-            raise ValueError("Could not find value '{0}'.".format(key))
-        except TypeError:
-            raise TypeError("Quick references to attributes of Trial objects must be string.")
+    def __getitem__(self, item):
+        if type(item) == str:
+            try:
+                return self._trial_lists[item]
+            except KeyError:
+                raise ValueError("Could not find data name '{0}'. Use method 'data_names()' for list of valid data names".format(item))
+        elif (type(item) == int) or (type(item) == slice):
+            return self._trial_lists['__main'][item]
+        else:
+            raise ValueError("Cannot find item '{0}' in session".format(item))
