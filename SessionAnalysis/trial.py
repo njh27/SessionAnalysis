@@ -165,7 +165,7 @@ class Trial(dict):
             for k in self.events.keys():
                 if k == key:
                     return self.events[k]
-            raise ValueError("Could not find value '{0}'.".format(key))
+            raise KeyError("Could not find value '{0}'.".format(key))
         except TypeError:
             raise TypeError("Quick references to attributes of Trial objects must be string.")
         # if type(index) == tuple:

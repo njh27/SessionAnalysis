@@ -187,7 +187,9 @@ class Session(object):
 
     The base object should be created from a list of dictionaries that represent
     trials. From this point, list of neuron dictionaries can be added as can
-    easier access labels such as trial blocks.
+    easier access labels such as trial blocks. The data for trial name, events,
+    and timeseries from the first input trial_data will be used as metadata and
+    enforced across all trial lists that attempt to join the session.
 
     The list of trials is added as a ConjoinedList so that lists of neurons can
     be added to the behavioral trial data. Each trial can contain events and
@@ -203,8 +205,9 @@ class Session(object):
         because double imports can confuse checking so undefined errors could
         result if other types are used. The first list of trial objects will
         be treated as the parent for any future trial sets added. This list
-        will also be used for any queried metadata, like trial name.
-        trial_name : string
+        will also be used to generate metadata, like trial name, and
+        timeseries that will be enforced across new trials added to session.
+        name : string
             Name of the given trial. Will be used to reference trials of this
             type.
         behavioral_data : dict
@@ -219,6 +222,9 @@ class Session(object):
             agreement with the time scheme of the timeseries data, i.e. starting
             the beginning of each trial t=0 or relative to the entire session.
             Event names can be used to reference events for alignment.
+        aligned_event : (optional) var
+            A key into the 'events' dictionary indicating the event on which
+            the trial is currently aligned.
     session_name : string
         String naming the session for user reference. Default = None.
 
@@ -239,9 +245,27 @@ class Session(object):
         # The first data listed is hard coded here as the parent of conjoined lists
         self._trial_lists[data_type] = self._trial_lists['__main']
         self.__series_names = {}
+        self._session_trial_data = []
         for t in trial_data:
+            st = {}
             for k in t['data'].keys():
                 self.__series_names[k] = data_type
+
+            # Extract some metadata that will be enforced over all trial sets
+            # joining this session
+            st['name'] = t['name']
+            st['events'] = t['events']
+            try:
+                st['aligned_event'] = t['aligned_event']
+            except KeyError:
+                st['aligned_event'] = None
+            st['aligned_time'] = t._timeseries[0]
+            st['timeseries'] = t._timeseries
+            st['curr_t_win'] = {}
+            self._session_trial_data.append(st)
+
+        self._session_trial_data = ConjoinedList(self._session_trial_data)
+        self._trial_lists['__main'].add_child(self._session_trial_data)
         self.session_name = session_name
         self.blocks = {}
         self.neurons = []
@@ -254,7 +278,8 @@ class Session(object):
             data_type = trial_data[0].__data_alias__
         if data_type in self._trial_lists:
             raise ValueError("Session already has data type {0}.".format(data_type))
-        # Check to update data_names so we can find their associated lis of
+        self.__validate_trial_data(trial_data)
+        # Check to update data_names so we can find their associated list of
         # trials quickly later (e.g. in get_data)
         new_names = set()
         for t in trial_data:
@@ -302,8 +327,11 @@ class Session(object):
         t_inds = self.__parse_trials_to_indices(trials)
         for t in t_inds:
             trial_obj = self._trial_lists[data_name][t]
-            trial_ts = trial_obj._timeseries
-            valid_tinds, out_inds = trial_ts.valid_index_range(time[0], time[1])
+            self._set_t_win(t, time)
+            # trial_ts = trial_obj._timeseries
+            # valid_tinds, out_inds = trial_ts.valid_index_range(time[0], time[1])
+            valid_tinds = self._session_trial_data[t]['curr_t_win']['valid_tinds']
+            out_inds = self._session_trial_data[t]['curr_t_win']['out_inds']
             t_data = np.full(out_inds.shape[0], np.nan)
             t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
             data_out.append(t_data)
@@ -352,6 +380,36 @@ class Session(object):
         """Provides a list of the available data series names under the given
         data_name. """
         return [x for x in self.__series_names.keys()]
+
+    def _set_t_win(self, trial_ind, t_win):
+        # First check if this is even a new t_win before updating
+        if ( (self._session_trial_data[trial_ind]['curr_t_win']['time'][0] == t_win[0])
+            and (self._session_trial_data[trial_ind]['curr_t_win']['time'][1] == t_win[1]) ):
+            # No change in t_win
+            return None
+        trial_ts = self._session_trial_data[trial_ind]['timeseries']
+        valid_tinds, out_inds = trial_ts.valid_index_range(t_win[0], t_win[1])
+        self._session_trial_data[trial_ind]['curr_t_win']['time'] = t_win
+        self._session_trial_data[trial_ind]['curr_t_win']['valid_tinds'] = valid_tinds
+        self._session_trial_data[trial_ind]['curr_t_win']['out_inds'] = out_inds
+        return None
+
+    def __validate_trial_data(self, trial_data):
+        """ Checks data in trial_data against imeseries data of
+        the main trial list and metadata to ensure newly added trials match
+        the timeseries data and length. """
+
+        for t_ind, t in enumerate(trial_data):
+            if t['name'] != self._session_trial_data[t_ind]['name']:
+                raise ValueError("New trial data in trial number {0} trial name does not matching existing session trial name ({1} vs. {2}).".format(t_ind, t['name'], self._session_trial_data[t_ind]['name']))
+            if len(t._timeseries) != len(self._session_trial_data[t_ind]['timeseries']):
+                raise ValueError("Length of new trial data in trial number {0} does not match existing session trial.".format(t_ind))
+            if t._timeseries[0] != self._session_trial_data[t_ind]['timeseries'][0]:
+                raise ValueError("New trial data in trial number {0} is not aligned to the same time for index zero as existing session trial ({1} vs. {2}).".format(t_ind, t._timeseries[0], self._session_trial_data[t_ind][0]))
+
+        return None
+
+
 
 
 
