@@ -29,7 +29,7 @@ def zero_phase_kernel(x, x_center):
 def cart2pol(x, y):
     theta = np.arctan2(y, x)
     rho = np.sqrt(x**2 + y**2)
-    
+
     return theta, rho
 
 

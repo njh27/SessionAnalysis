@@ -2,6 +2,125 @@ import numpy as np
 
 
 
+def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_min=0, block_max=np.inf,
+                      max_absent=0, max_consec_absent=np.inf, max_absent_pct=1, max_consec_single=np.inf):
+    """ Finds the indices of blocks of trials satisfying the input criteria.
+    The indices are given so that the number for BLOCK STOP IS ONE GREATER THAN
+    THE ACTUAL TRIAL! so that it can be SLICED appropriately.
+
+    Parameters
+    ----------
+    trial_data : python list of Trial type objects
+        This can be the usual trial_data list. For the purposes of this function,
+        it is only required to be a list of dictionaries, each containing the
+        key 'name' which returns the name of the trial.
+        name : string
+            Name of the given trial that will be sought.
+    trial_names : list of strings
+        Each element of the list is a string of a trial name that should be
+        included in the block.
+    ignore_trial_names : list of strings
+        Each element of the list is a string of a trial name that should be
+        ignored even if they occur within a block of the desired trial names
+        given in trial_names.
+    block_min : int
+        Minimum number of trials required to form a block.
+    block_max : int
+        Maximum number of trials allowed to form 1 block.
+    max_absent : int
+        Maximum number of trials within a block that are absent from the list
+        of 'trial_names' and can still be considered the correct block.
+    max_consec_absent : int
+        Maximum number of trials within a block that are absent from the list
+        of 'trial_names' consecutively and can still be considered the correct
+        block.
+    max_absent_pct : int
+        Maximum number of trials within a block that are absent from the list
+        of 'trial_names' and can still be considered the correct block.
+    max_consec_single : int
+        Maximum number of consecutive trials with an identical trial name that
+        are allowed to be considered the same block
+
+    Returns
+    -------
+    block_trial_windows : list of Window
+        A list of Window objects indicating the beginning and end of each block
+        found that satisfies the input criteria.
+    """
+    if (max_consec_absent < np.inf) and (max_consec_absent > 0):
+        if max_absent < max_consec_absent:
+            max_absent = np.inf
+
+    block_trial_windows = []
+    stop_triggers = []
+    check_block = False
+    final_check = False
+    foo_block_start = None
+    for trial in range(0, len(trial_data)):
+        if trial_data[trial]['name'] in trial_names and not check_block:
+            # Block starts
+            # print("STARTED block {}".format(trial))
+            n_absent = 0
+            n_consec_absent = 0
+            n_consec_single = 0
+            check_block = True
+            foo_block_start = trial
+        elif trial_data[trial]['name'] in trial_names and check_block:
+            # Good trial in the current block being checked
+            # print("CONTINUE block {}".format(trial))
+            n_consec_absent = 0
+            if n_consec_single > max_consec_single:
+                # Block ends
+                final_check = True
+                this_trigger = (trial, 'n_consec_single exceeded')
+            else:
+                if trial_data[trial]['name'] == last_trial_name:
+                    n_consec_single += 1
+                else:
+                    n_consec_single = 0
+            foo_block_stop = trial
+        elif trial_data[trial]['name'] not in trial_names and trial_data[trial]['name'] not in ignore_trial_names and check_block:
+            # Bad trial for block
+            # print("FAILED block {}".format(trial))
+            n_absent += 1
+            if n_absent > max_absent:
+                # Block ends
+                final_check = True
+                this_trigger = (trial, 'n_absent exceeded')
+            elif n_consec_absent > max_consec_absent:
+                # Block ends
+                final_check = True
+                this_trigger = (trial, 'n_consec_absent exceeded')
+            # else:
+            #     stop_triggers.append('good block')
+            n_consec_absent += 1
+        else:
+            pass
+        last_trial_name = trial_data[trial]['name']
+
+        if trial == len(trial_data)-1:
+            final_check = True
+            this_trigger = (trial, 'end of file reached')
+
+        if final_check:
+            # Check block qualities that can't be done without knowing entire block
+            # and then save block for output or discard
+            # print("FINAL CHECK {}".format(trial))
+            if foo_block_start is None:
+                block_len = 0
+            else:
+                block_len = foo_block_stop - foo_block_start
+            if block_len > 0 and check_block:
+                # Subtract 1 from n_absent here because 1 was added to it just to break the block and is not included in it
+                if block_len >= block_min and block_len <= block_max and ((n_absent - 1)/ block_len) <= max_absent_pct:
+                    block_trial_windows.append(Window([foo_block_start, foo_block_stop + 1]))
+                    stop_triggers.append(this_trigger)
+            check_block = False
+            final_check = False
+
+    return block_trial_windows, stop_triggers
+
+
 class ConjoinedMismatchError(Exception):
     # Dummy exception class for a potential problem with list matching
     pass
@@ -45,6 +164,9 @@ class Window(object):
 
     def __len__(self):
         return 2
+
+    def __repr__(self):
+        return "[{0}, {1}]".format(self.start, self.stop)
 
 
 from collections.abc import MutableSequence
@@ -262,6 +384,7 @@ class Session(object):
             st['aligned_time'] = t._timeseries[0]
             st['timeseries'] = t._timeseries
             st['curr_t_win'] = {}
+            st['curr_t_win']['time'] = [-np.inf, np.inf]
             self._session_trial_data.append(st)
 
         self._session_trial_data = ConjoinedList(self._session_trial_data)
@@ -328,8 +451,6 @@ class Session(object):
         for t in t_inds:
             trial_obj = self._trial_lists[data_name][t]
             self._set_t_win(t, time)
-            # trial_ts = trial_obj._timeseries
-            # valid_tinds, out_inds = trial_ts.valid_index_range(time[0], time[1])
             valid_tinds = self._session_trial_data[t]['curr_t_win']['valid_tinds']
             out_inds = self._session_trial_data[t]['curr_t_win']['out_inds']
             t_data = np.full(out_inds.shape[0], np.nan)
@@ -348,7 +469,7 @@ class Session(object):
         return t_block
 
     def __parse_trials_to_indices(self, trials):
-        """ Can accept string inputs indicating block names, or slices otypef indices,
+        """ Can accept string inputs indicating block names, or slices of indices,
         or numpy array of indices, or list of indices and outputs a corresponding
         useful index for getting the corresponding trials."""
         if type(trials) == slice:
@@ -409,6 +530,38 @@ class Session(object):
 
         return None
 
+    def remove_trials_less_than_event(self, name_event_num_dict):
+        """ Remove trials that do not contain the required number of Maestro events
+            (e.g. trials that terminated too early to be useful).  The required
+            number of events is specified by the input dictionary name_event_num_dict
+            that contains all trial names and returns the number of events required
+            for that trial name to avoid deletion. """
+        for t in range(len(self.trials) - 1, -1, -1):
+            if not self.trials[t]['maestro_events'][name_event_num_dict[self.trials[t]['trial_name']]]:
+                del self.trials[t]
+                for n in range(0, len(self.neurons)):
+                    del self.neurons[n].trial_spikes[t]
+
+    def add_blocks(self, trial_names, block_names, **criteria):
+        """ Adds groups of trials to blocks named 'block_names'. Blocks are
+        named in order of trial number using the order of names provided in
+        block_names. If more blocks are found than block_names given, and error
+        is raised. If fewer blocks are found than names given, the extra names
+        are ignored.
+        """
+        trial_windows, _ = find_trial_blocks(self._trial_lists['__main'], trial_names, **criteria)
+        if type(block_names) == list:
+            if len(trial_windows) > len(block_names):
+                raise RunTimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
+            for tw_ind in range(0, len(trial_windows)):
+                self.blocks[block_names[tw_ind]] = trial_windows[tw_ind]
+        else:
+            if len(trial_windows) > 1:
+                raise RunTimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
+            else:
+                self.blocks[block_name] = trial_windows[0]
+        return None
+
 
 
 
@@ -425,28 +578,9 @@ class Session(object):
                 trial_names.append(trial['trial_name'])
         return trial_names
 
-    def remove_trials_less_than_event(self, name_event_num_dict):
-        """ Remove trials that do not contain the required number of Maestro events
-            (e.g. trials that terminated too early to be useful).  The required
-            number of events is specified by the input dictionary name_event_num_dict
-            that contains all trial names and returns the number of events required
-            for that trial name to avoid deletion. """
-        for t in range(len(self.trials) - 1, -1, -1):
-            if not self.trials[t]['maestro_events'][name_event_num_dict[self.trials[t]['trial_name']]]:
-                del self.trials[t]
-                for n in range(0, len(self.neurons)):
-                    del self.neurons[n].trial_spikes[t]
 
-    def add_block(self, trial_names, block_name, criteria_dict):
-        """ Adds groups of trials to blocks named 'block_name'. """
-        trial_windows, stop_triggers = maestroPL2.find_trial_blocks(self.trials, trial_names, **criteria_dict)
-        if len(trial_windows) > 0:
-            # for blk in range(0, len(trial_windows)):
-            #     if len(trial_windows) > 1:
-            #         block_name = block_name + str(blk)
-            self.blocks[block_name] = {}
-            self.blocks[block_name]['trial_windows'] = trial_windows
-            self.blocks[block_name]['trial_names'] = trial_names
+
+
 
     def trim_block(self, block, remove_block):
         """ Trims overlapping trials from block that are also in remove_block. """
