@@ -562,6 +562,9 @@ class Session(object):
                 self.blocks[block_name] = trial_windows[0]
         return None
 
+    def alias_trial_name(self, trials, old_name, new_name):
+        pass
+
 
 
 
