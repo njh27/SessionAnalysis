@@ -420,6 +420,22 @@ class Session(object):
 
         return None
 
+    def align_trial_data(self, alignment, trials=None):
+        if trials is None:
+            t_inds = np.arange(0, len(self))
+        else:
+            t_inds = self.__parse_trials_to_indices(trials)
+        for t in t_inds:
+
+    def data_names(self):
+        """Provides a list of the available data names. """
+        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
+
+    def series_names(self):
+        """Provides a list of the available data series names under the given
+        data_name. """
+        return [x for x in self.__series_names.keys()]
+
     def get_data_list(self, series_name, trials, time):
         """ Returns a list of length trials, where each element of the list
         contains the timeseries data in the requested time window. If the time
@@ -492,15 +508,6 @@ class Session(object):
         times and turns them into the corresponding indices using the
         timeseries of the trial. """
         pass
-
-    def data_names(self):
-        """Provides a list of the available data names. """
-        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
-
-    def series_names(self):
-        """Provides a list of the available data series names under the given
-        data_name. """
-        return [x for x in self.__series_names.keys()]
 
     def _set_t_win(self, trial_ind, t_win):
         # First check if this is even a new t_win before updating
