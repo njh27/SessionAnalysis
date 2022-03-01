@@ -426,6 +426,7 @@ class Session(object):
         else:
             t_inds = self.__parse_trials_to_indices(trials)
         for t in t_inds:
+            pass
 
     def data_names(self):
         """Provides a list of the available data names. """
