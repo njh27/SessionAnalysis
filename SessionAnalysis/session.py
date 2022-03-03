@@ -317,7 +317,8 @@ class Session(object):
     be added to the behavioral trial data. Each trial can contain events and
     multiple named timeseries data so that behavior and neuron analysis can be
     performed. Trials can contain names for later reference and indexing as well
-    as blocks, which index groups of related trials.
+    as blocks, which index groups of related trials. Added groups of trials
+    will be assigned the main timeseries from the first parent group of trials.
 
     Parameters
     ----------
@@ -382,6 +383,10 @@ class Session(object):
             except KeyError:
                 st['aligned_event'] = None
             st['aligned_time'] = t._timeseries[0]
+            if st['aligned_time'] < len(t._timeseries):
+                st['incl_align'] = True
+            else:
+                st['incl_align'] = False
             st['timeseries'] = t._timeseries
             st['curr_t_win'] = {}
             st['curr_t_win']['time'] = [-np.inf, np.inf]
@@ -395,7 +400,8 @@ class Session(object):
 
     def add_trial_data(self, trial_data, data_type=None):
         """ Adds a new list of trial dictionaries that will be conjoined with
-        the existing list initialized via __init__. """
+        the existing list initialized via __init__. New trials are assigned the
+        same timeseries as the __main trials."""
         if data_type is None:
             # Use data name of first trial as default
             data_type = trial_data[0].__data_alias__
@@ -405,7 +411,9 @@ class Session(object):
         # Check to update data_names so we can find their associated list of
         # trials quickly later (e.g. in get_data)
         new_names = set()
-        for t in trial_data:
+        for t_ind, t in enumerate(trial_data):
+            # Re-assign timeseries data
+            t._timeseries = self._session_trial_data[t_ind]['timeseries']
             for k in t['data'].keys():
                 new_names.add(k)
         for nn in new_names:
@@ -420,13 +428,36 @@ class Session(object):
 
         return None
 
-    def align_trial_data(self, alignment, trials=None):
+    def align_trial_data(self, alignment_event, alignment_offset=0., trials=None):
+        """ Aligns the trial timeseries to the event specified plus the
+        offset specified.
+
+        If trials is None, the offset is applied to all trials containing the
+        specified event.
+        """
         if trials is None:
             t_inds = np.arange(0, len(self))
         else:
             t_inds = self.__parse_trials_to_indices(trials)
-        for t in t_inds:
-            pass
+        for ind in t_inds:
+            st = self._session_trial_data[ind]
+            if alignment_event not in st['events']:
+                if trials is not None:
+                    print("WARNING: trial number {0} does not have an event named {1} and was not aligned.".format(ind, alignment_event))
+                continue
+            # Undo existing alignment and windows, resetting alignment to 0
+            st['timeseries'] -= st['aligned_time']
+            st['curr_t_win']['time'] = [-np.inf, np.inf]
+            # Set new alignment and metadata
+            if st['events'][alignment_event] is None:
+                # This trial has a field for this event but is not present
+                # in this particular instance
+                st['incl_align'] = False
+            else:
+                st['incl_align'] = True
+                st['aligned_time'] = st['events'][alignment_event] + alignment_offset
+                st['timeseries'] += st['aligned_time']
+        return None
 
     def data_names(self):
         """Provides a list of the available data names. """
@@ -436,6 +467,14 @@ class Session(object):
         """Provides a list of the available data series names under the given
         data_name. """
         return [x for x in self.__series_names.keys()]
+
+    def event_names(self):
+        """ Provides a list of all event names in the entire data set. """
+        all_names = set()
+        for st in self._session_trial_data:
+            for ev in st['events']:
+                all_names.add(ev)
+        return [x for x in all_names]
 
     def get_data_list(self, series_name, trials, time):
         """ Returns a list of length trials, where each element of the list
@@ -448,6 +487,9 @@ class Session(object):
         data_name = self.__series_names[series_name]
         t_inds = self.__parse_trials_to_indices(trials)
         for t in t_inds:
+            if not self._session_trial_data[t]['incl_align']:
+                # Trial is not aligned with others due to missing event
+                continue
             trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
             try:
@@ -466,8 +508,13 @@ class Session(object):
         data_name = self.__series_names[series_name]
         t_inds = self.__parse_trials_to_indices(trials)
         for t in t_inds:
+            if not self._session_trial_data[t]['incl_align']:
+                # Trial is not aligned with others due to missing event
+                continue
             trial_obj = self._trial_lists[data_name][t]
             self._set_t_win(t, time)
+            # print(self._session_trial_data[t]['curr_t_win'])
+            # raise ValueError(t) //825
             valid_tinds = self._session_trial_data[t]['curr_t_win']['valid_tinds']
             out_inds = self._session_trial_data[t]['curr_t_win']['out_inds']
             t_data = np.full(out_inds.shape[0], np.nan)
@@ -498,8 +545,10 @@ class Session(object):
         elif type(trials) == Window:
             t_inds = np.arange(trials[0], trials[1], dtype=np.int32)
         elif type(trials) == str:
-            trials = self._get_blocks[trials]
+            # Unpack trial numbers and recurse into this function
+            trials = self._get_blocks(trials)
             if type(trials) == str:
+                # Avoid infinite/multiple recursion. It's too difficult to be worth it.
                 raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
             t_inds = self.__parse_trials_to_indices(trials)
         return t_inds
@@ -530,7 +579,7 @@ class Session(object):
 
         for t_ind, t in enumerate(trial_data):
             if t['name'] != self._session_trial_data[t_ind]['name']:
-                raise ValueError("New trial data in trial number {0} trial name does not matching existing session trial name ({1} vs. {2}).".format(t_ind, t['name'], self._session_trial_data[t_ind]['name']))
+                raise ValueError("New trial data in trial number {0} trial name does not match existing session trial name ({1} vs. {2}).".format(t_ind, t['name'], self._session_trial_data[t_ind]['name']))
             if len(t._timeseries) != len(self._session_trial_data[t_ind]['timeseries']):
                 raise ValueError("Length of new trial data in trial number {0} does not match existing session trial.".format(t_ind))
             if t._timeseries[0] != self._session_trial_data[t_ind]['timeseries'][0]:

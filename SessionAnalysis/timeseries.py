@@ -111,6 +111,7 @@ class Timeseries(object):
             out_stop = np.argmax(pseudo_values >= stop)
         out_inds[out_start:out_stop] = True
         if (out_stop - out_start) != len(valid_inds):
+            print(out_stop - out_start, len(valid_inds))
             print(pseudo_values[0], pseudo_values[-1], start, stop, out_start, out_stop, t1, t2, self.start, self.stop)
             raise RuntimeError("Number of out inds indices does not match valid inds. Could be a rounding error or coding error.")
 
