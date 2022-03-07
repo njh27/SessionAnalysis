@@ -397,6 +397,7 @@ class Session(object):
         self._trial_lists['__main'].add_child(self._session_trial_data)
         self.session_name = session_name
         self.blocks = {}
+        self.trial_sets = {}
         self.neurons = []
 
     def add_trial_data(self, trial_data, data_type=None):
@@ -474,28 +475,15 @@ class Session(object):
         be specified by name in 'taret_data_name'."""
         for ind, st in enumerate(self._session_trial_data):
             try:
-                if st['name'] == '0-dnStab':
-                    tp = True
-                else:
-                    tp = False
-                tp = False
-                if self._trial_lists[target_data_name][ind]['data'].get_next_refresh(st['events'][event_name]) is None:
-                    print("Trial", ind, "HAS NO NEXT REFRESH!")
                 st['events'][event_name] = self._trial_lists[target_data_name][ind]['data'].get_next_refresh(st['events'][event_name])
-                # if tp: print("worked trial", ind, "named", st['name'])
             except AttributeError:
-                if tp: print("Data found in target_data_name {0} could not find MaestroTarget object in 'data' field.".format(target_data_name))
+                print("Data found in target_data_name {0} could not find MaestroTarget object in 'data' field.".format(target_data_name))
                 continue
             except KeyError:
                 # Trial does not have sought event so skip
-                if tp: print("KEY ERROR trial", ind, "named", st['name'], st['events'][event_name])
                 continue
             except:
                 # Everything else also skip
-                if tp:
-                    print("FAILURE trial", ind, "named", st['name'], st['events'][event_name])
-                    if st['events'][event_name] is None:
-                        print("trial length", len(st['timeseries']))
                 continue
         return None
 
@@ -560,12 +548,19 @@ class Session(object):
             t_data = np.full(out_inds.shape[0], np.nan)
             t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
             data_out.append(t_data)
-            if np.any(t_data[0:15]):
-                print("LOW ON TRIAL", t)
 
         return np.vstack(data_out)
 
-    def _get_blocks(self, block_name):
+    def _get_trial_set(self, set_name):
+        """Tries to get the trial indices associated with the specified trial
+        set string and throws a more appropriate error during failure. """
+        try:
+            t_set = self.trial_sets[set_name]
+        except KeyError:
+            raise KeyError("Session object has no trial set named {0}.".format(set_name))
+        return t_set
+
+    def _get_block(self, block_name):
         """Tries to get the trial indices associated with the specified block
         name string and throws a more appropriate error during failure. """
         try:
@@ -575,8 +570,9 @@ class Session(object):
         return t_block
 
     def __parse_trials_to_indices(self, trials):
-        """ Can accept string inputs indicating block names, or slices of indices,
-        or numpy array of indices, or list of indices and outputs a corresponding
+        """ Can accept string inputs indicating block names, trial set names
+        (these are checked before block names) or slices of indices, or numpy
+        array of indices, or list of indices and outputs a corresponding
         useful index for getting the corresponding trials."""
         if type(trials) == slice:
             # Return the slice of all trial indices
@@ -587,12 +583,17 @@ class Session(object):
         elif type(trials) == Window:
             t_inds = np.arange(trials[0], trials[1], dtype=np.int32)
         elif type(trials) == str:
-            # Unpack trial numbers and recurse into this function
-            trials = self._get_blocks(trials)
-            if type(trials) == str:
-                # Avoid infinite/multiple recursion. It's too difficult to be worth it.
-                raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
-            t_inds = self.__parse_trials_to_indices(trials)
+            try:
+                # Check if this is trial set first
+                t_inds = self._get_trial_set(trials)
+            except KeyError:
+                # Not found in trial sets so check blocks
+                # Unpack trial numbers and recurse into this function
+                trials = self._get_block(trials)
+                if type(trials) == str:
+                    # Avoid infinite/multiple recursion. It's too difficult to be worth it.
+                    raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
+                t_inds = self.__parse_trials_to_indices(trials)
         return t_inds
 
     def __parse_time_to_indices(self, time):
@@ -659,6 +660,15 @@ class Session(object):
                 raise RunTimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
             else:
                 self.blocks[block_name] = trial_windows[0]
+        return None
+
+    def add_trial_set(self, new_set_name, block_name, trial_name):
+        new_inds = np.zeros(len(self), dtype='bool')
+        t_inds = self.__parse_trials_to_indices(self, block_name)
+        for ind in t_inds:
+            if self._session_trial_data[ind]['name'] == trial_name:
+                new_inds[ind] = True
+        self.trial_sets[new_set_name] = new_inds
         return None
 
     def alias_trial_name(self, trials, old_name, new_name):
