@@ -319,6 +319,7 @@ class Session(object):
     performed. Trials can contain names for later reference and indexing as well
     as blocks, which index groups of related trials. Added groups of trials
     will be assigned the main timeseries from the first parent group of trials.
+    The ideal parent group is a set of MaestroApparatusTrial objects.
 
     Parameters
     ----------
@@ -434,6 +435,11 @@ class Session(object):
 
         If trials is None, the offset is applied to all trials containing the
         specified event.
+        NOTE: since trial time is assumed to start at 0 in an absolute sense,
+        alignement event times are subtracted from current alignment time after
+        the offset is added to the event time. Thus, alignment to
+        "fixation onset" with offset of 100 ms aligns to 100 ms after fixation
+        onset = t0.
         """
         if trials is None:
             t_inds = np.arange(0, len(self))
@@ -446,7 +452,7 @@ class Session(object):
                     print("WARNING: trial number {0} does not have an event named {1} and was not aligned.".format(ind, alignment_event))
                 continue
             # Undo existing alignment and windows, resetting alignment to 0
-            st['timeseries'] -= st['aligned_time']
+            st['timeseries'] += st['aligned_time']
             st['curr_t_win']['time'] = [-np.inf, np.inf]
             # Set new alignment and metadata
             if st['events'][alignment_event] is None:
@@ -456,7 +462,41 @@ class Session(object):
             else:
                 st['incl_align'] = True
                 st['aligned_time'] = st['events'][alignment_event] + alignment_offset
-                st['timeseries'] += st['aligned_time']
+                st['timeseries'] -= st['aligned_time']
+        return None
+
+    def shift_event_to_refresh(self, event_name, target_data_name='__main'):
+        """ Finds each trial with an event 'event_name' and moves the event
+        time to match the ms target sampling of the next refresh event (i.e.,
+        shifts commanded event times to actual event times on screen).
+
+        The alignment is peformed using the MaestroTarget object, which must
+        be specified by name in 'taret_data_name'."""
+        for ind, st in enumerate(self._session_trial_data):
+            try:
+                if st['name'] == '0-dnStab':
+                    tp = True
+                else:
+                    tp = False
+                tp = False
+                if self._trial_lists[target_data_name][ind]['data'].get_next_refresh(st['events'][event_name]) is None:
+                    print("Trial", ind, "HAS NO NEXT REFRESH!")
+                st['events'][event_name] = self._trial_lists[target_data_name][ind]['data'].get_next_refresh(st['events'][event_name])
+                # if tp: print("worked trial", ind, "named", st['name'])
+            except AttributeError:
+                if tp: print("Data found in target_data_name {0} could not find MaestroTarget object in 'data' field.".format(target_data_name))
+                continue
+            except KeyError:
+                # Trial does not have sought event so skip
+                if tp: print("KEY ERROR trial", ind, "named", st['name'], st['events'][event_name])
+                continue
+            except:
+                # Everything else also skip
+                if tp:
+                    print("FAILURE trial", ind, "named", st['name'], st['events'][event_name])
+                    if st['events'][event_name] is None:
+                        print("trial length", len(st['timeseries']))
+                continue
         return None
 
     def data_names(self):
@@ -520,6 +560,8 @@ class Session(object):
             t_data = np.full(out_inds.shape[0], np.nan)
             t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
             data_out.append(t_data)
+            if np.any(t_data[0:15]):
+                print("LOW ON TRIAL", t)
 
         return np.vstack(data_out)
 

@@ -86,11 +86,12 @@ class Timeseries(object):
         the requested start/stop time window. This can allow consistent indexing
         of outputs at an identical shape among multiple timeseries with
         different lengths. """
+        # Convert start and stop to usable multiples of timeseries
+        start = int(round((start) / self.dt))
+        stop = int(round((stop) / self.dt))
         # Force to find what the array size should be if all values were present in timeseries
-        out_ind_start = int(round((start) / self.dt))
-        out_ind_stop = int(round((stop) / self.dt))
         pseudo_values = np.arange(start, stop+self.dt, self.dt)
-        out_inds = np.zeros((out_ind_stop - out_ind_start), dtype='bool')
+        out_inds = np.zeros((stop - start), dtype='bool')
         if start > stop:
             raise IndexError("Start value must be <= stop value.")
         if (start >= self.stop) or (stop <= self.start):
