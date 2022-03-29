@@ -472,7 +472,7 @@ class Session(object):
         shifts commanded event times to actual event times on screen).
 
         The alignment is peformed using the MaestroTarget object, which must
-        be specified by name in 'taret_data_name'."""
+        be specified by name in 'target_data_name'."""
         for ind, st in enumerate(self._session_trial_data):
             try:
                 st['events'][event_name] = self._trial_lists[target_data_name][ind]['data'].get_next_refresh(st['events'][event_name])
@@ -569,11 +569,42 @@ class Session(object):
             raise KeyError("Session object has no block named {0}.".format(block_name))
         return t_block
 
-    def __parse_trials_to_indices(self, trials):
+    # def __parse_block_to_indices(self, block):
+    #     """ Can accept string inputs indicating block names, trial set names
+    #     (these are checked before block names) or slices of indices, or numpy
+    #     array of indices, or list of indices and outputs a corresponding
+    #     useful index for getting the corresponding trials."""
+    #     if type(trials) == slice:
+    #         # Return the slice of all trial indices
+    #         t_inds = np.arange(0, len(self), dtype=np.int32)
+    #         t_inds = t_inds[trials]
+    #     elif (type(trials) == np.ndarray) or (type(trials) == list):
+    #         t_inds = np.int32(trials)
+    #     elif type(trials) == Window:
+    #         t_inds = np.arange(trials[0], trials[1], dtype=np.int32)
+    #     elif type(trials) == str:
+    #         try:
+    #             # Check if this is trial set first
+    #             t_inds = self._get_trial_set(trials)
+    #         except KeyError:
+    #             # Not found in trial sets so check blocks
+    #             # Unpack trial numbers and recurse into this function
+    #             trials = self._get_block(trials)
+    #             if type(trials) == str:
+    #                 # Avoid infinite/multiple recursion. It's too difficult to be worth it.
+    #                 raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
+    #             t_inds = self.__parse_trials_to_indices(trials)
+    #     return t_inds
+
+    def __blocks_and_trials_to_indices(self, blocks, trials):
         """ Can accept string inputs indicating block names, trial set names
         (these are checked before block names) or slices of indices, or numpy
         array of indices, or list of indices and outputs a corresponding
         useful index for getting the corresponding trials."""
+        if trials is None:
+            for blk in blocks:
+                self.__parse_block_to_indices()
+
         if type(trials) == slice:
             # Return the slice of all trial indices
             t_inds = np.arange(0, len(self), dtype=np.int32)
@@ -594,7 +625,7 @@ class Session(object):
                     # Avoid infinite/multiple recursion. It's too difficult to be worth it.
                     raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
                 t_inds = self.__parse_trials_to_indices(trials)
-        return t_inds
+        return t_inds.sorted()
 
     def __parse_time_to_indices(self, time):
         """ Accepts a 2 element time window, slice of times or array/list of
@@ -630,18 +661,6 @@ class Session(object):
 
         return None
 
-    def remove_trials_less_than_event(self, name_event_num_dict):
-        """ Remove trials that do not contain the required number of Maestro events
-            (e.g. trials that terminated too early to be useful).  The required
-            number of events is specified by the input dictionary name_event_num_dict
-            that contains all trial names and returns the number of events required
-            for that trial name to avoid deletion. """
-        for t in range(len(self.trials) - 1, -1, -1):
-            if not self.trials[t]['maestro_events'][name_event_num_dict[self.trials[t]['trial_name']]]:
-                del self.trials[t]
-                for n in range(0, len(self.neurons)):
-                    del self.neurons[n].trial_spikes[t]
-
     def add_blocks(self, trial_names, block_names, **criteria):
         """ Adds groups of trials to blocks named 'block_names'. Blocks are
         named in order of trial number using the order of names provided in
@@ -670,6 +689,21 @@ class Session(object):
                 new_inds[ind] = True
         self.trial_sets[new_set_name] = new_inds
         return None
+
+    def __find_trials_less_than_event__(self, event, trial_names=None, block_names=None):
+        """Returns an index of trials whose duration is less than the input
+        event time. This will be done only within the input trial and block
+        names (if any). Output can then be put into the "delete_trials"
+        function which must handle updating any blocks, trial sets, indices,
+        etc. that will be affected since the super class cannot know these. """
+        trials_less_than_event = np.zeros(len(self), dtype='bool')
+        t_inds = self.__parse_trials_to_indices(trials)
+        for t in range(0, len(self)):
+
+            if not self.trials[t]['maestro_events'][name_event_num_dict[self.trials[t]['trial_name']]]:
+                del self.trials[t]
+                for n in range(0, len(self.neurons)):
+                    del self.neurons[n].trial_spikes[t]
 
     def alias_trial_name(self, trials, old_name, new_name):
         pass

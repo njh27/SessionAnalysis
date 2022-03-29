@@ -130,6 +130,8 @@ class Trial(dict):
         self._timeseries = Timeseries(start_data, stop_data, dt_data)
         self._aligntime = start_data
         self._alignevent = None
+        self.duration = len(self._timeseries)
+        self.dur = self.duration
 
         return None
 
