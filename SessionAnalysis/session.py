@@ -569,34 +569,91 @@ class Session(object):
             raise KeyError("Session object has no block named {0}.".format(block_name))
         return t_block
 
-    # def __parse_block_to_indices(self, block):
-    #     """ Can accept string inputs indicating block names, trial set names
-    #     (these are checked before block names) or slices of indices, or numpy
-    #     array of indices, or list of indices and outputs a corresponding
-    #     useful index for getting the corresponding trials."""
-    #     if type(trials) == slice:
-    #         # Return the slice of all trial indices
-    #         t_inds = np.arange(0, len(self), dtype=np.int32)
-    #         t_inds = t_inds[trials]
-    #     elif (type(trials) == np.ndarray) or (type(trials) == list):
-    #         t_inds = np.int32(trials)
-    #     elif type(trials) == Window:
-    #         t_inds = np.arange(trials[0], trials[1], dtype=np.int32)
-    #     elif type(trials) == str:
-    #         try:
-    #             # Check if this is trial set first
-    #             t_inds = self._get_trial_set(trials)
-    #         except KeyError:
-    #             # Not found in trial sets so check blocks
-    #             # Unpack trial numbers and recurse into this function
-    #             trials = self._get_block(trials)
-    #             if type(trials) == str:
-    #                 # Avoid infinite/multiple recursion. It's too difficult to be worth it.
-    #                 raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
-    #             t_inds = self.__parse_trials_to_indices(trials)
-    #     return t_inds
+    def __parse_trials_to_set(self, trials, t_inds=None):
+        """ Can accept a string input indicating a trial set dictionary key,
+        or slices of indices, or numpy
+        array of indices, or list of indices and outputs a corresponding
+        useful index for getting the corresponding trials.
+        t_inds must contain an integer type usable for indexing. """
+        t_set = np.zeros(len(self), dtype='bool')
+        if trials in self.trial_sets:
+            # If trials corresponds with existing set, use that set
+            existing_t_set = self._get_trial_set(trials)
+            if t_inds is None:
+                return existing_t_set # Can skip looping below
+            t_set[t_inds] = True
+            t_set = np.logical_and(t_set, existing_t_set)
+            return t_set
 
-    def __blocks_and_trials_to_indices(self, blocks, trials):
+        if t_inds is None:
+            t_inds = np.arange(0, len(self), dtype=np.int32)
+        t_inds = np.array(t_inds)
+        if type(trials) == str:
+            # Put string in a list
+            trials = [trials]
+
+        if type(trials) == list:
+            if type(trials[0]) != str:
+
+        # Check string first so can be list of strings
+        if (type(trials) == str) or (type(trials) == list):
+            try:
+                # Check if this is trial set first
+                t_inds = self._get_trial_set(trials)
+            except KeyError:
+                # Not found in trial sets so check blocks
+                # Unpack trial numbers and recurse into this function
+                trials = self._get_block(trials)
+                if type(trials) == str:
+                    # Avoid infinite/multiple recursion. It's too difficult to be worth it.
+                    raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
+                t_inds = self.__parse_trials_to_indices(trials)
+        elif type(trials) == slice:
+            # Return the slice of trial indices
+            t_inds = t_inds[trials]
+            t_set[t_inds] = True
+        elif (type(trials) == np.ndarray) or (type(trials) == list):
+            t_inds = np.int32(trials)
+
+        for t_count, t in enumerate(t_inds):
+            t_set[t] = True
+
+
+
+        elif type(trials) == Window:
+            t_inds = np.arange(trials[0], trials[1], dtype=np.int32)
+
+        elif type(trials) == str:
+            try:
+                # Check if this is trial set first
+                t_inds = self._get_trial_set(trials)
+            except KeyError:
+                # Not found in trial sets so check blocks
+                # Unpack trial numbers and recurse into this function
+                trials = self._get_block(trials)
+                if type(trials) == str:
+                    # Avoid infinite/multiple recursion. It's too difficult to be worth it.
+                    raise RuntimeError("Input string for trials returned a block string which will result in multiple recursion. Check blocks attribute for errors.")
+                t_inds = self.__parse_trials_to_indices(trials)
+
+        return t_set
+
+    def __parse_block_to_indices(self, block):
+        """Input is a block dictionary key or a raw Window object indicating
+        the indices of a given block. Outputs the indices into the main trial
+        list corresponding to the block. """
+        if type(block) == Window:
+            t_inds = np.arange(block[0], block[1], dtype=np.int32)
+            return t_inds
+        # block is not a Window object so try to find it in dictionary
+        try:
+            b_win = self._get_block(block)
+            t_inds = np.arange(b_win[0], b_win[1], dtype=np.int32)
+            return t_inds
+        except KeyError:
+            raise ValueError("Block not found. Input block must be either a Window object or key to 'blocks' attribute dictionary.")
+
+    def __blocks_and_trials_to_indices(self, blocks, trial_sets):
         """ Can accept string inputs indicating block names, trial set names
         (these are checked before block names) or slices of indices, or numpy
         array of indices, or list of indices and outputs a corresponding
@@ -681,13 +738,48 @@ class Session(object):
                 self.blocks[block_name] = trial_windows[0]
         return None
 
-    def add_trial_set(self, new_set_name, block_name, trial_name):
-        new_inds = np.zeros(len(self), dtype='bool')
-        t_inds = self.__parse_trials_to_indices(self, block_name)
-        for ind in t_inds:
-            if self._session_trial_data[ind]['name'] == trial_name:
-                new_inds[ind] = True
-        self.trial_sets[new_set_name] = new_inds
+    def add_trial_set(self, new_set_name, trials=None, block=None):
+        """
+        """
+        new_set = np.zeros(len(self), dtype='bool')
+        if trials is None and block is None:
+            # No blocks or trials specified so add everything
+            new_set[:] = True
+            self.trial_sets[new_set_name] = new_set
+            return None
+        if block is None:
+            t_inds = np.arange(0, len(self))
+        else:
+            t_inds = self.__parse_block_to_indices(self, block)
+        if trials is None:
+            # No trials specified, so add the whole block
+            new_set[t_inds] = True
+            self.trial_sets[new_set_name] = new_set
+            return None
+
+        if type(trials) == str:
+            # Put string in a list to iterate
+            trials = [trials]
+        if type(trials) == list:
+            # Check list is list of strings
+            for t_name in trials:
+                if type(t_name) != str:
+                    raise ValueError("Inputs must be strings of trial names. To input trial indices use a numpy array of integers or python slice object.")
+            # Search for trials with this name in the input block
+            for ind in t_inds:
+                if self._session_trial_data[ind]['name'] in trials:
+                    new_set[ind] = True
+        elif type(trials) == slice:
+            # Return the slice of trial indices
+            t_inds = t_inds[trials]
+            t_set[t_inds] = True
+        elif type(trials) == np.ndarray:
+            # Return the trial indices input for this block
+            t_inds = t_inds[trials]
+            t_set[t_inds] = True
+        else:
+            raise ValueError("Invalid type used to specify trials. Must be type 'None', 'str' (or list of str), 'slice' or 'np.ndarray'.")
+        self.trial_sets[new_set_name] = new_set
         return None
 
     def __find_trials_less_than_event__(self, event, trial_names=None, block_names=None):
