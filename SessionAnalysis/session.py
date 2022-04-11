@@ -430,26 +430,24 @@ class Session(object):
 
         return None
 
-    def align_trial_data(self, alignment_event, alignment_offset=0., trials=None):
+    def align_trial_data(self, alignment_event, alignment_offset=0.,
+                         blocks=None, trial_sets=None):
         """ Aligns the trial timeseries to the event specified plus the
         offset specified.
 
-        If trials is None, the offset is applied to all trials containing the
-        specified event.
+        If trial_sets is None, the offset is applied to all trials containing
+        the specified event.
         NOTE: since trial time is assumed to start at 0 in an absolute sense,
         alignement event times are subtracted from current alignment time after
         the offset is added to the event time. Thus, alignment to
         "fixation onset" with offset of 100 ms aligns to 100 ms after fixation
         onset = t0.
         """
-        if trials is None:
-            t_inds = np.arange(0, len(self))
-        else:
-            t_inds = self.__parse_trials_to_indices(trials)
+        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
         for ind in t_inds:
             st = self._session_trial_data[ind]
             if alignment_event not in st['events']:
-                if trials is not None:
+                if trial_sets is not None:
                     print("WARNING: trial number {0} does not have an event named {1} and was not aligned.".format(ind, alignment_event))
                 continue
             # Undo existing alignment and windows, resetting alignment to 0
@@ -487,24 +485,8 @@ class Session(object):
                 continue
         return None
 
-    def data_names(self):
-        """Provides a list of the available data names. """
-        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
-
-    def series_names(self):
-        """Provides a list of the available data series names under the given
-        data_name. """
-        return [x for x in self.__series_names.keys()]
-
-    def event_names(self):
-        """ Provides a list of all event names in the entire data set. """
-        all_names = set()
-        for st in self._session_trial_data:
-            for ev in st['events']:
-                all_names.add(ev)
-        return [x for x in all_names]
-
-    def get_data_list(self, series_name, trials, time):
+    def get_data_list(self, series_name, time_window, blocks=None,
+                      trial_sets=None):
         """ Returns a list of length trials, where each element of the list
         contains the timeseries data in the requested time window. If the time
         window exceeds the valid range of the timeseries, data are excluded.
@@ -513,7 +495,7 @@ class Session(object):
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
-        t_inds = self.__parse_trials_to_indices(trials)
+        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
         for t in t_inds:
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
@@ -521,26 +503,26 @@ class Session(object):
             trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
             try:
-                trial_tinds = trial_ts.find_index_range(time[0], time[1])
+                trial_tinds = trial_ts.find_index_range(time_window[0], time_window[1])
             except IndexError:
                 continue
             data_out.append(trial_obj['data'][series_name][trial_tinds])
 
         return data_out
 
-    def get_data_array(self, series_name, trials, time):
+    def get_data_array(self, series_name, time_window, blocks=None, trial_sets=None):
         """ Returns a n trials by m time points numpy array of the requested
         timeseries data. Missing data points are filled in with np.nan.
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
-        t_inds = self.__parse_trials_to_indices(trials)
+        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
         for t in t_inds:
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
                 continue
             trial_obj = self._trial_lists[data_name][t]
-            self._set_t_win(t, time)
+            self._set_t_win(t, time_window)
             # print(self._session_trial_data[t]['curr_t_win'])
             # raise ValueError(t) //825
             valid_tinds = self._session_trial_data[t]['curr_t_win']['valid_tinds']
@@ -584,6 +566,18 @@ class Session(object):
         except KeyError:
             raise ValueError("Block not found. Input block must be either a Window object or key to 'blocks' attribute dictionary.")
 
+    def __parse_blocks_to_indices(self, blocks):
+        """ Quick loop function that can iteratively parse multiple block
+        strings in a list by calling __parse_block_to_indices. """
+        if type(blocks) != list:
+            blocks = [blocks]
+        all_blk_indices = []
+        for blk in blocks:
+            all_blk_indices.extend(self.__parse_block_to_indices(blk))
+        all_blk_indices = np.int32(np.hstack(all_blk_indices))
+        all_blk_indices = np.unique(all_blk_indices) # Unique AND sorted
+        return all_blk_indices
+
     def __blocks_and_trials_to_indices(self, blocks, trial_sets):
         """ Given a key, or list of keys, to the blocks and trial sets dictionaries
         this function returns the indices of trials satisfiying the condition:
@@ -593,13 +587,7 @@ class Session(object):
         if blocks is None:
             all_blk_indices = np.arange(0, len(self), dtype=np.int32)
         else:
-            if type(blocks) != list:
-                blocks = [blocks]
-            all_blk_indices = []
-            for blk in blocks:
-                all_blk_indices.extend(self.__parse_block_to_indices(blocks))
-            all_blk_indices = np.hstack(all_blk_indices)
-            all_blk_indices = np.unique(all_blk_indices) # Unique AND sorted
+            all_blk_indices = self.__parse_blocks_to_indices(blocks)
         # Gather all the possible trial_sets indicated by trial_sets
         if type(trial_sets) != list:
             trial_sets = [trial_sets]
@@ -613,7 +601,6 @@ class Session(object):
             if all_trial_sets[t_ind]:
                 keep_inds[n_ind] = True
         all_blk_indices = all_blk_indices[keep_inds]
-
         return all_blk_indices
 
     def __parse_blocks_trial_sets(self, blocks=None, trial_sets=None):
@@ -622,7 +609,9 @@ class Session(object):
         """
         if blocks is None and trial_sets is None:
             return np.arange(0, len(self), dtype=np.int32)
-        elif blocks is None and trial_sets is not None:
+        elif blocks is not None and trial_sets is None:
+            return self.__parse_blocks_to_indices(blocks)
+        else:
             return self.__blocks_and_trials_to_indices(blocks, trial_sets)
 
     def __parse_time_to_indices(self, time):
@@ -735,20 +724,53 @@ class Session(object):
         self.trial_sets[new_set_name] = new_set
         return None
 
-    def __find_trials_less_than_event__(self, event, trial_names=None, block_names=None):
+    def __find_trials_less_than_event__(self, event, blocks=None, trial_sets=None):
         """Returns an index of trials whose duration is less than the input
         event time. This will be done only within the input trial and block
         names (if any). Output can then be put into the "delete_trials"
         function which must handle updating any blocks, trial sets, indices,
         etc. that will be affected since the super class cannot know these. """
         trials_less_than_event = np.zeros(len(self), dtype='bool')
-        t_inds = self.__parse_trials_to_indices(trials)
+        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
         for t in range(0, len(self)):
 
             if not self.trials[t]['maestro_events'][name_event_num_dict[self.trials[t]['trial_name']]]:
                 del self.trials[t]
                 for n in range(0, len(self.neurons)):
                     del self.neurons[n].trial_spikes[t]
+
+    ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
+    def data_names(self):
+        """Provides a list of the available data names. """
+        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
+
+    def series_names(self):
+        """Provides a list of the available data series names under the given
+        data_name. """
+        return [x for x in self.__series_names.keys()]
+
+    def event_names(self):
+        """ Provides a list of all event names in the entire data set. """
+        all_names = set()
+        for st in self._session_trial_data:
+            for ev in st['events']:
+                all_names.add(ev)
+        return [x for x in all_names]
+
+    def trial_set_names(self):
+        """ Provides a list of all trial_set names in the session object. """
+        all_names = set()
+        for ts in self.trial_sets.keys():
+            all_names.add(ts)
+        return [x for x in all_names]
+
+    def block_names(self):
+        """ Provides a list of all block names in the session object. """
+        all_names = set()
+        for blk in self.blocks.keys():
+            all_names.add(blk)
+        return [x for x in all_names]
+    ###########################################################################
 
     def alias_trial_name(self, trials, old_name, new_name):
         pass
