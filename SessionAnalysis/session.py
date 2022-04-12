@@ -162,6 +162,17 @@ class Window(object):
         else:
             raise IndexError("Window objects have 2 indices, 0 and 1, for start and stop but index '{0}' was requested.".format(index))
 
+    def __setitem__(self, index, value):
+        if index == 0:
+            self.start = value
+        elif index == 1:
+            self.stop = value
+        else:
+            raise IndexError("Window objects have 2 indices, 0 and 1, for start and stop but index '{0}' was requested.".format(index))
+
+    def __iter__(self):
+        return iter([self.start, self.stop])
+
     def __len__(self):
         return 2
 
@@ -203,7 +214,6 @@ class ConjoinedList(MutableSequence):
         self._initialized_list = True
 
     def __delitem__(self, index):
-        print("DELETING INDEX", index)
         for cl in self._conjoined_lists:
             cl.__non_recursive_delitem__(index)
         self.__check_match_IDs__()
@@ -227,41 +237,6 @@ class ConjoinedList(MutableSequence):
         self.__check_match_IDs__()
         return None
 
-    def __setitem__(self, index, value):
-        self.__list__[index] = value
-        return None
-
-    def __getitem__(self, index):
-        return self.__list__[index]
-
-    def __len__(self):
-        return len(self.__list__)
-
-    def __iter__(self):
-        return self.__list__.__iter__()
-
-    def sort(self, key=None, reverse=False):
-        new_order = [y for x, y in sorted(zip(self.__list__,
-                        [x for x in range(0, len(self.__list__))]), key=key)]
-        if reverse:
-            new_order = [x for x in reversed(new_order)]
-        self.order(new_order)
-        # Match length is checked in "self.order"
-        return None
-
-    def order(self, new_order):
-        """ Reorders all conjoined lists according to the order indices input
-        in new_order. """
-        for cl in self._conjoined_lists:
-            cl.__non_recursive_order__(new_order)
-        self.__check_match_IDs__()
-        return None
-
-    def __non_recursive_order__(self, new_order):
-        self.__list__ = [self.__list__[x] for x in new_order]
-        self._element_ID = [self._element_ID[x] for x in new_order]
-        return None
-
     def add_child(self, ChildConjoinedList):
         """ Attach another ConjoinedList object to the current one. This new
         child list cannot be associated with other ConjoinedList objects and
@@ -282,6 +257,41 @@ class ConjoinedList(MutableSequence):
                     ChildConjoinedList._conjoined_lists.append(cl)
         except AttributeError as err:
             raise AttributeError("Only ConjoinedList type can be conjoined.") from err
+        return None
+
+    def sort(self, key=None, reverse=False):
+        new_order = [y for x, y in sorted(zip(self.__list__,
+                        [x for x in range(0, len(self.__list__))]), key=key)]
+        if reverse:
+            new_order = [x for x in reversed(new_order)]
+        self.order(new_order)
+        # Match length is checked in "self.order"
+        return None
+
+    def order(self, new_order):
+        """ Reorders all conjoined lists according to the order indices input
+        in new_order. """
+        for cl in self._conjoined_lists:
+            cl.__non_recursive_order__(new_order)
+        self.__check_match_IDs__()
+        return None
+
+    def __setitem__(self, index, value):
+        self.__list__[index] = value
+        return None
+
+    def __getitem__(self, index):
+        return self.__list__[index]
+
+    def __len__(self):
+        return len(self.__list__)
+
+    def __iter__(self):
+        return self.__list__.__iter__()
+
+    def __non_recursive_order__(self, new_order):
+        self.__list__ = [self.__list__[x] for x in new_order]
+        self._element_ID = [self._element_ID[x] for x in new_order]
         return None
 
     def __str__(self):
@@ -724,20 +734,26 @@ class Session(object):
         self.trial_sets[new_set_name] = new_set
         return None
 
-    def __find_trials_less_than_event__(self, event, blocks=None, trial_sets=None):
+    def __find_trials_less_than_event__(self, event, blocks=None,
+                                        trial_sets=None, event_offset=0.):
         """Returns an index of trials whose duration is less than the input
         event time. This will be done only within the input trial and block
         names (if any). Output can then be put into the "delete_trials"
         function which must handle updating any blocks, trial sets, indices,
-        etc. that will be affected since the super class cannot know these. """
+        etc. that will be affected since the super class cannot know these.
+        Trials that lack the event name specified in 'event' are marked is
+        being less than the event. """
         trials_less_than_event = np.zeros(len(self), dtype='bool')
         t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
-        for t in range(0, len(self)):
-
-            if not self.trials[t]['maestro_events'][name_event_num_dict[self.trials[t]['trial_name']]]:
-                del self.trials[t]
-                for n in range(0, len(self.neurons)):
-                    del self.neurons[n].trial_spikes[t]
+        for ind in t_inds:
+            # Try assuming that event is in events dictionary
+            try:
+                if self[ind].duration < (self[ind].events[event] + event_offset):
+                    trials_less_than_event[ind] = True
+            except KeyError:
+                # Trial does not have this event
+                trials_less_than_event[ind] = True
+        return trials_less_than_event
 
     ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
     def data_names(self):
@@ -791,6 +807,32 @@ class Session(object):
                 trial_names.append(trial['trial_name'])
         return trial_names
 
+    def delete_trials(self, indices):
+        """ Deletes the set of trials indicated by indices. Indices are either
+        integer indices of the trials to remove or a boolean mask where the
+        "True" values will be deleted. """
+        if type(indices) == np.ndarray:
+            if indices.dtype == 'bool':
+                d_inds = np.nonzero(indices)[0]
+            else:
+                # Only unique, sorted, as integers
+                d_inds = np.unique(np.int64(indices))
+        elif type(indices) == list:
+            d_inds = np.array(indices, dtype=np.int64)
+        else:
+            if type(indices) != int:
+                raise ValueError("Indices must be a numpy array, python list, or integer type.")
+        if d_inds.ndim > 1:
+            raise ValueError("Indices must be 1 dimensional or scalar.")
+        if (type(indices) == int) or (d_inds.ndim == 0):
+            # Only 1 index input for deletion
+            del self[indices]
+
+        # Multiple indices are present
+        for ind in indices:
+        self.__del_trial_set__ = True
+
+
 
 
 
@@ -815,16 +857,78 @@ class Session(object):
         for d_n in reversed(delete_whole_n):
             del self.blocks[block]['trial_windows'][d_n]
 
+    def __verify_data_lengths(self):
+        for blk in self.blocks.keys():
+            blk_win = self.blocks[blk]
+            if ( (blk_win[0] < 0) or (blk_win[0] > len(self))
+                or (blk_win[1] < 1) or (blk_win[1] > len(self)) ):
+                raise RuntimeError("The block window for block {0} has moved beyond the range of viable trials. Likely the result of error during trial deletion.".format(blk))
+        for ts in self.trial_sets.keys():
+            if type(self.trial_sets[ts]) != np.ndarray:
+                raise RuntimeError("The trial set '{0}' is not of type numpy.ndarray.".format(ts))
+            if ts.shape[0] != len(self):
+                raise RuntimeError("The trial set '{0}' is not the same length as the trials in session. Likely the result of error during trial deletion.".format(ts))
+        return None
+
+    def __delitem__(self, index):
+        """ Deletes the trial and info associated with index. This can be tricky
+        but the goal here is to keep track of everything so trials are in 1-1
+        alignment. Doing more than checking lengths would be hard here, but this
+        is already managed in ConjoinedList so here just track other stuff.
+        Currently removes:
+            blocks
+            _trial_lists
+            trial_sets
+        """
+        print(index, del_trial_set)
+        if len(self.neurons) > 0:
+            raise ValueError("Deletion with neurons present not implemented yet!")
+            self.neurons = []
+        # Update the block windows
+        checked_wins = set()
+        for blk in self.blocks:
+            blk_win = self.blocks[blk]
+            if blk_win in checked_wins:
+                # Block windows can be aliased so don't duplicate
+                continue
+            if blk_win[0] > index:
+                blk_win[0] -= 1
+                blk_win[1] -= 1
+            elif (blk_win[0] < index) and (blk_win[1] > index):
+                blk_win[1] -= 1
+            elif blk_win[0] == index:
+                blk_win[1] -= 1
+            elif blk_win[1] == index:
+                blk_win[1] -= 1
+            elif blk_win[1] < index:
+                pass
+            else:
+                raise ValueError("Index to window contingency not found for block window '{0}' and index '{1}'!".format(blk_win, index))
+            checked_wins.add(blk_win)
+        # Deleting main part of conjoined list should delete everything else
+        del self._trial_lists['__main'][index]
+        if self.__del_trial_set__:
+            for ts in self.trial_sets.keys():
+                self.trial_sets[ts] = np.delete(self.trial_sets[ts], index)
+            self.__verify_data_lengths()
+        self.__del_trial_set__ = True # Always set back to True so this function works as normal
+        return None
+
     def __len__(self):
         return len(self._trial_lists['__main'])
 
     def __getitem__(self, item):
-        if type(item) == str:
-            try:
-                return self._trial_lists[item]
-            except KeyError:
-                raise ValueError("Could not find data name '{0}'. Use method 'data_names()' for list of valid data names".format(item))
-        elif (type(item) == int) or (type(item) == slice):
+        """ Items are retrieved by first assuming integer/slice index into the
+        trial lists but then checks for strings to dictionary/attributes if
+        an error is raised. """
+        try:
+            # Just assume integer index
             return self._trial_lists['__main'][item]
-        else:
-            raise ValueError("Cannot find item '{0}' in session".format(item))
+        except TypeError:
+            if type(item) == str:
+                try:
+                    return self._trial_lists[item]
+                except KeyError:
+                    raise ValueError("Could not find data name '{0}'. Use method 'data_names()' for list of valid data names".format(item))
+            else:
+                raise ValueError("Cannot find item or trial index '{0}' in session".format(item))
