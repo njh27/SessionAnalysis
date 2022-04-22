@@ -408,6 +408,7 @@ class Session(object):
         self.session_name = session_name
         self.blocks = {}
         self.trial_sets = {}
+        self.__del_trial_set__ = True
         self.neurons = []
 
     def add_trial_data(self, trial_data, data_type=None):
@@ -827,10 +828,21 @@ class Session(object):
         if (type(indices) == int) or (d_inds.ndim == 0):
             # Only 1 index input for deletion
             del self[indices]
+            return None
 
         # Multiple indices are present
-        for ind in indices:
-        self.__del_trial_set__ = True
+        # Use del function to update blocks and trials
+        for ind in d_inds:
+            # To avoid constantly re-allocating numpy arrays, we can delete all of these at the end
+            self.__del_trial_set__ = False
+            del self[ind]
+
+        # Now remove trial sets all at once
+        for ts in self.trial_sets.keys():
+            self.trial_sets[ts] = np.delete(self.trial_sets[ts], d_inds)
+        self.__verify_data_lengths()
+
+        return None
 
 
 
@@ -866,7 +878,7 @@ class Session(object):
         for ts in self.trial_sets.keys():
             if type(self.trial_sets[ts]) != np.ndarray:
                 raise RuntimeError("The trial set '{0}' is not of type numpy.ndarray.".format(ts))
-            if ts.shape[0] != len(self):
+            if self.trial_sets[ts].shape[0] != len(self):
                 raise RuntimeError("The trial set '{0}' is not the same length as the trials in session. Likely the result of error during trial deletion.".format(ts))
         return None
 
@@ -880,7 +892,6 @@ class Session(object):
             _trial_lists
             trial_sets
         """
-        print(index, del_trial_set)
         if len(self.neurons) > 0:
             raise ValueError("Deletion with neurons present not implemented yet!")
             self.neurons = []
@@ -907,6 +918,7 @@ class Session(object):
             checked_wins.add(blk_win)
         # Deleting main part of conjoined list should delete everything else
         del self._trial_lists['__main'][index]
+        # Must update trial sets according to what was deleted
         if self.__del_trial_set__:
             for ts in self.trial_sets.keys():
                 self.trial_sets[ts] = np.delete(self.trial_sets[ts], index)
