@@ -11,68 +11,67 @@ def find_saccade_windows(x_vel, y_vel, time_cushion=20, acceleration_thresh=1, v
     time_cushion = np.array(time_cushion).astype('int')
 
     # Make this just for 1 trial!
-    for trial in range(0, len(maestro_PL2_data)):
-        # Compute normalized eye speed vector and corresponding acceleration
-        # print(trial)
-        # print(maestro_PL2_data[trial]['horizontal_eye_velocity'])
-        eye_speed = la.norm(np.vstack((maestro_PL2_data[trial]['eye_velocity'][0], maestro_PL2_data[trial]['eye_velocity'][1])), ord=None, axis=0)
-        eye_acceleration = np.zeros(eye_speed.shape)
-        eye_acceleration[1:] = np.diff(eye_speed, n=1, axis=0)
+    # Compute normalized eye speed vector and corresponding acceleration
+    # print(trial)
+    # print(maestro_PL2_data[trial]['horizontal_eye_velocity'])
+    eye_speed = la.norm(np.vstack((maestro_PL2_data[trial]['eye_velocity'][0], maestro_PL2_data[trial]['eye_velocity'][1])), ord=None, axis=0)
+    eye_acceleration = np.zeros(eye_speed.shape)
+    eye_acceleration[1:] = np.diff(eye_speed, n=1, axis=0)
 
-        # Find saccades as all points exceeding input thresholds
-        threshold_indices = np.where(np.logical_or((eye_speed > velocity_thresh), (np.absolute(eye_acceleration) > acceleration_thresh)))[0]
-        if threshold_indices.size == 0:
-            # No saccades this trial
-            maestro_PL2_data[trial]['saccade_windows'] = np.empty(0).astype('int')
-            maestro_PL2_data[trial]['saccade_index'] = np.zeros(maestro_PL2_data[trial]['duration_ms'], 'bool')
-            maestro_PL2_data[trial]['saccade_time_cushion'] = time_cushion
-            continue
-
-        # Find the end of all saccades based on the time gap between each element of threshold indices.
-        # Gaps between saccades must exceed the time_cushion padding on either end to count as separate saccades.
-        switch_indices = np.zeros_like(threshold_indices, dtype=bool)
-        switch_indices[0:-1] =  np.diff(threshold_indices) > time_cushion * 2
-
-        # Use switch index to find where one saccade ends and the next begins and store the locations.  These don't include
-        # the beginning of first saccade or end of last saccade, so add 1 element to saccade_windows
-        switch_points = np.where(switch_indices)[0]
-        saccade_windows = np.full((switch_points.shape[0] + 1, 2), np.nan, dtype='int')
-
-        # Check switch points and use their corresponding indices to find actual time values in threshold_indices
-        for saccade in range(0, saccade_windows.shape[0]):
-            if saccade == 0:
-                # Start of first saccade not indicated in switch points so add time cushion to the first saccade
-                # time in threshold indices after checking whether it is within time limit of trial data
-                if threshold_indices[saccade] - time_cushion > 0:
-                    saccade_windows[saccade, 0] = threshold_indices[saccade] - time_cushion
-                else:
-                    saccade_windows[saccade, 0] = 0
-
-            # Making this an "if" rather than "elif" means in case of only 1 saccade, this statement
-            # and the "if" statement above both run
-            if saccade == saccade_windows.shape[0] - 1:
-                # End of last saccade, which is not indicated in switch points so add time cushion to end of
-                # last saccade time in threshold indices after checking whether it is within time of trial data
-                if len(eye_speed) < threshold_indices[-1] + time_cushion:
-                    saccade_windows[saccade, 1] = len(eye_speed)
-                else:
-                    saccade_windows[saccade, 1] = threshold_indices[-1] + time_cushion
-            else:
-                # Add cushion to end of current saccade.
-                saccade_windows[saccade, 1] = threshold_indices[switch_points[saccade]] + time_cushion
-
-            # Add cushion to the start of next saccade if there is one
-            if saccade_windows.shape[0] > saccade + 1:
-                saccade_windows[saccade + 1, 0] = threshold_indices[switch_points[saccade] + 1] - time_cushion
-
-        maestro_PL2_data[trial]['saccade_windows'] = saccade_windows
+    # Find saccades as all points exceeding input thresholds
+    threshold_indices = np.where(np.logical_or((eye_speed > velocity_thresh), (np.absolute(eye_acceleration) > acceleration_thresh)))[0]
+    if threshold_indices.size == 0:
+        # No saccades this trial
+        maestro_PL2_data[trial]['saccade_windows'] = np.empty(0).astype('int')
+        maestro_PL2_data[trial]['saccade_index'] = np.zeros(maestro_PL2_data[trial]['duration_ms'], 'bool')
         maestro_PL2_data[trial]['saccade_time_cushion'] = time_cushion
+        continue
 
-        # Set boolean index for marking saccade times and save
-        saccade_index = np.zeros(maestro_PL2_data[trial]['duration_ms'], 'bool')
-        for saccade_win in maestro_PL2_data[trial]['saccade_windows']:
-            saccade_index[saccade_win[0]:saccade_win[1]] = True
-        maestro_PL2_data[trial]['saccade_index'] = saccade_index
+    # Find the end of all saccades based on the time gap between each element of threshold indices.
+    # Gaps between saccades must exceed the time_cushion padding on either end to count as separate saccades.
+    switch_indices = np.zeros_like(threshold_indices, dtype=bool)
+    switch_indices[0:-1] =  np.diff(threshold_indices) > time_cushion * 2
+
+    # Use switch index to find where one saccade ends and the next begins and store the locations.  These don't include
+    # the beginning of first saccade or end of last saccade, so add 1 element to saccade_windows
+    switch_points = np.where(switch_indices)[0]
+    saccade_windows = np.full((switch_points.shape[0] + 1, 2), np.nan, dtype='int')
+
+    # Check switch points and use their corresponding indices to find actual time values in threshold_indices
+    for saccade in range(0, saccade_windows.shape[0]):
+        if saccade == 0:
+            # Start of first saccade not indicated in switch points so add time cushion to the first saccade
+            # time in threshold indices after checking whether it is within time limit of trial data
+            if threshold_indices[saccade] - time_cushion > 0:
+                saccade_windows[saccade, 0] = threshold_indices[saccade] - time_cushion
+            else:
+                saccade_windows[saccade, 0] = 0
+
+        # Making this an "if" rather than "elif" means in case of only 1 saccade, this statement
+        # and the "if" statement above both run
+        if saccade == saccade_windows.shape[0] - 1:
+            # End of last saccade, which is not indicated in switch points so add time cushion to end of
+            # last saccade time in threshold indices after checking whether it is within time of trial data
+            if len(eye_speed) < threshold_indices[-1] + time_cushion:
+                saccade_windows[saccade, 1] = len(eye_speed)
+            else:
+                saccade_windows[saccade, 1] = threshold_indices[-1] + time_cushion
+        else:
+            # Add cushion to end of current saccade.
+            saccade_windows[saccade, 1] = threshold_indices[switch_points[saccade]] + time_cushion
+
+        # Add cushion to the start of next saccade if there is one
+        if saccade_windows.shape[0] > saccade + 1:
+            saccade_windows[saccade + 1, 0] = threshold_indices[switch_points[saccade] + 1] - time_cushion
+
+    maestro_PL2_data[trial]['saccade_windows'] = saccade_windows
+    maestro_PL2_data[trial]['saccade_time_cushion'] = time_cushion
+
+    # Set boolean index for marking saccade times and save
+    saccade_index = np.zeros(maestro_PL2_data[trial]['duration_ms'], 'bool')
+    for saccade_win in maestro_PL2_data[trial]['saccade_windows']:
+        saccade_index[saccade_win[0]:saccade_win[1]] = True
+    maestro_PL2_data[trial]['saccade_index'] = saccade_index
 
     return maestro_PL2_data
 
