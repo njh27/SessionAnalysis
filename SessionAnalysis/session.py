@@ -774,58 +774,6 @@ class Session(object):
                 raise
         return trials_less_than_event
 
-    ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
-    def data_names(self):
-        """Provides a list of the available data names. """
-        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
-
-    def series_names(self):
-        """Provides a list of the available data series names under the given
-        data_name. """
-        return [x for x in self.__series_names.keys()]
-
-    def event_names(self):
-        """ Provides a list of all event names in the entire data set. """
-        all_names = set()
-        for st in self._session_trial_data:
-            for ev in st['events']:
-                all_names.add(ev)
-        return [x for x in all_names]
-
-    def trial_set_names(self):
-        """ Provides a list of all trial_set names in the session object. """
-        all_names = set()
-        for ts in self.trial_sets.keys():
-            all_names.add(ts)
-        return [x for x in all_names]
-
-    def block_names(self):
-        """ Provides a list of all block names in the session object. """
-        all_names = set()
-        for blk in self.blocks.keys():
-            all_names.add(blk)
-        return [x for x in all_names]
-    ###########################################################################
-
-    def alias_trial_name(self, trials, old_name, new_name):
-        pass
-
-
-
-
-
-
-    def add_neuron(self, Neuron):
-        """. """
-        Neuron.join_session(self)
-
-    def get_trial_names(self):
-        trial_names = []
-        for trial in self.trials:
-            if trial['trial_name'] not in trial_names:
-                trial_names.append(trial['trial_name'])
-        return trial_names
-
     def delete_trials(self, indices):
         """ Deletes the set of trials indicated by indices. Indices are either
         integer indices of the trials to remove or a boolean mask where the
@@ -858,33 +806,56 @@ class Session(object):
         for ts in self.trial_sets.keys():
             self.trial_sets[ts] = np.delete(self.trial_sets[ts], d_inds)
         self.__verify_data_lengths()
-
         return None
 
+    def alias_trial_name(self, trials, old_name, new_name):
+        pass
+
+    def add_neuron(self, Neuron):
+        """. """
+        Neuron.join_session(self)
 
 
+    ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
+    def get_trial_names(self):
+        trial_names = []
+        for trial in self.trials:
+            if trial['trial_name'] not in trial_names:
+                trial_names.append(trial['trial_name'])
+        return trial_names
 
+    def data_names(self):
+        """Provides a list of the available data names. """
+        return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
 
+    def series_names(self):
+        """Provides a list of the available data series names under the given
+        data_name. """
+        return [x for x in self.__series_names.keys()]
 
-    def trim_block(self, block, remove_block):
-        """ Trims overlapping trials from block that are also in remove_block. """
-        delete_whole_n = []
-        for n_block in range(0, len(self.blocks[block]['trial_windows'])):
-            for n_rem_block in range(0, len(self.blocks[remove_block]['trial_windows'])):
-                if self.blocks[remove_block]['trial_windows'][n_rem_block][1] < self.blocks[block]['trial_windows'][n_block][1]:
-                    if self.blocks[block]['trial_windows'][n_block][0] < self.blocks[remove_block]['trial_windows'][n_rem_block][1]:
-                        self.blocks[block]['trial_windows'][n_block][0] = self.blocks[remove_block]['trial_windows'][n_rem_block][1]
-                if self.blocks[remove_block]['trial_windows'][n_rem_block][1] > self.blocks[block]['trial_windows'][n_block][1]:
-                    if self.blocks[block]['trial_windows'][n_block][1] > self.blocks[remove_block]['trial_windows'][n_rem_block][0]:
-                        self.blocks[block]['trial_windows'][n_block][1] = self.blocks[remove_block]['trial_windows'][n_rem_block][0]
-                if self.blocks[block]['trial_windows'][n_block][0] == self.blocks[remove_block]['trial_windows'][n_rem_block][0]:
-                    if self.blocks[block]['trial_windows'][n_block][1] == self.blocks[remove_block]['trial_windows'][n_rem_block][1]:
-                        # This block is duplicate of remove block so delete it
-                        delete_whole_n.append(n_block)
-                        break
+    def event_names(self):
+        """ Provides a list of all event names in the entire data set. """
+        all_names = set()
+        for st in self._session_trial_data:
+            for ev in st['events']:
+                all_names.add(ev)
+        return [x for x in all_names]
 
-        for d_n in reversed(delete_whole_n):
-            del self.blocks[block]['trial_windows'][d_n]
+    def trial_set_names(self):
+        """ Provides a list of all trial_set names in the session object. """
+        all_names = set()
+        for ts in self.trial_sets.keys():
+            all_names.add(ts)
+        return [x for x in all_names]
+
+    def block_names(self):
+        """ Provides a list of all block names in the session object. """
+        all_names = set()
+        for blk in self.blocks.keys():
+            all_names.add(blk)
+        return [x for x in all_names]
+    ###########################################################################
+
 
     def __verify_data_lengths(self):
         for blk in self.blocks.keys():
