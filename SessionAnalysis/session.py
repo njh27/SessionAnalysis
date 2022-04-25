@@ -151,6 +151,9 @@ class Window(object):
         else:
             self.start = int(start)
             self.stop = int(stop)
+        self.__check_values__()
+
+    def __check_values__(self):
         if self.stop <= self.start:
             raise ValueError("Input stop window must be greater than start. Current start = {0} and stop = {1}.".format(self.start, self.stop))
 
@@ -168,7 +171,8 @@ class Window(object):
         elif index == 1:
             self.stop = value
         else:
-            raise IndexError("Window objects have 2 indices, 0 and 1, for start and stop but index '{0}' was requested.".format(index))
+            raise IndexError("Window objects have 2 indices, 0 and 1, for start and stop but index '{0}' was assigned.".format(index))
+        self.__check_values__()
 
     def __iter__(self):
         return iter([self.start, self.stop])
@@ -735,25 +739,39 @@ class Session(object):
         self.trial_sets[new_set_name] = new_set
         return None
 
-    def __find_trials_less_than_event__(self, event, blocks=None,
-                                        trial_sets=None, event_offset=0.):
+    def find_trials_less_than_event(self, event, blocks=None,
+                    trial_sets=None, ignore_not_found=True, event_offset=0.):
         """Returns an index of trials whose duration is less than the input
         event time. This will be done only within the input trial and block
         names (if any). Output can then be put into the "delete_trials"
         function which must handle updating any blocks, trial sets, indices,
         etc. that will be affected since the super class cannot know these.
-        Trials that lack the event name specified in 'event' are marked is
-        being less than the event. """
+        Trials that lack the event name specified in 'event' are marked as
+        being less than the event if ignore_not_found is 'False'. Events that
+        return a time of 'None' are treated as being less than event. """
         trials_less_than_event = np.zeros(len(self), dtype='bool')
         t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
         for ind in t_inds:
             # Try assuming that event is in events dictionary
             try:
-                if self[ind].duration < (self[ind].events[event] + event_offset):
+                if self[ind].events[event] is None:
                     trials_less_than_event[ind] = True
+                elif self[ind].duration < (self[ind].events[event] + event_offset):
+                    trials_less_than_event[ind] = True
+                else:
+                    # This should imply that the trial has the event
+                    # Here is just setting to default value for clarity, but
+                    # is not necessary
+                    trials_less_than_event[ind] = False
             except KeyError:
                 # Trial does not have this event
-                trials_less_than_event[ind] = True
+                if ignore_not_found:
+                    trials_less_than_event[ind] = False
+                else:
+                    trials_less_than_event[ind] = True
+            except:
+                print("ind: ", ind, "duration: ", self[ind].duration, "event time: ", self[ind].events[event])
+                raise
         return trials_less_than_event
 
     ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
@@ -814,10 +832,10 @@ class Session(object):
         "True" values will be deleted. """
         if type(indices) == np.ndarray:
             if indices.dtype == 'bool':
-                d_inds = np.nonzero(indices)[0]
+                d_inds = np.int64(np.nonzero(indices)[0])
             else:
                 # Only unique, sorted, as integers
-                d_inds = np.unique(np.int64(indices))
+                d_inds = np.int64(indices)
         elif type(indices) == list:
             d_inds = np.array(indices, dtype=np.int64)
         else:
@@ -829,14 +847,13 @@ class Session(object):
             # Only 1 index input for deletion
             del self[indices]
             return None
-
-        # Multiple indices are present
-        # Use del function to update blocks and trials
+        # Multiple indices are present. Use unique, sorted, in reverse
+        d_inds = np.unique(d_inds)[-1::-1]
+        # Use del function to update blocks and trials in reverse order
         for ind in d_inds:
             # To avoid constantly re-allocating numpy arrays, we can delete all of these at the end
             self.__del_trial_set__ = False
             del self[ind]
-
         # Now remove trial sets all at once
         for ts in self.trial_sets.keys():
             self.trial_sets[ts] = np.delete(self.trial_sets[ts], d_inds)
@@ -909,9 +926,9 @@ class Session(object):
                 blk_win[1] -= 1
             elif blk_win[0] == index:
                 blk_win[1] -= 1
-            elif blk_win[1] == index:
-                blk_win[1] -= 1
-            elif blk_win[1] < index:
+            # elif blk_win[1] == index:
+            #     blk_win[1] -= 1
+            elif blk_win[1] <= index:
                 pass
             else:
                 raise ValueError("Index to window contingency not found for block window '{0}' and index '{1}'!".format(blk_win, index))
