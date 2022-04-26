@@ -1,1 +1,3 @@
+import SessionAnalysis.utils.eye_data_series
 import SessionAnalysis.utils.format_trial_dicts
+import SessionAnalysis.utils.general
