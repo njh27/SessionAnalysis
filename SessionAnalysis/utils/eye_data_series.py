@@ -1,9 +1,15 @@
 import numpy as np
-from scipy import stats
 
 
 
-def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, velocity_thresh=30):
+def mode1D(x):
+    # Faster and without scipy way to find mode of 1D array
+    values, counts = np.unique(x, return_counts=True)
+    m = counts.argmax()
+    return values[m], counts[m]
+
+
+def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, speed_thresh=30):
     """ Given the x and y velocity timeseries and threshold criteria, this will
     find the time window indices from saccade start to stop +/- time cushion.
     x_vel and y_vel are assumed to be 1D numpy arrays.
@@ -20,7 +26,7 @@ def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, ve
     eye_acceleration[1:] = np.diff(eye_speed, n=1, axis=0)
 
     # Find saccades as all points exceeding input thresholds
-    threshold_indices = np.where(np.logical_or((eye_speed > velocity_thresh), (np.absolute(eye_acceleration) > acceleration_thresh)))[0]
+    threshold_indices = np.where(np.logical_or((eye_speed > speed_thresh), (np.absolute(eye_acceleration) > acceleration_thresh)))[0]
     if threshold_indices.size == 0:
         # No saccades this trial
         saccade_windows = np.empty(0, dtype=np.int64)
@@ -73,68 +79,75 @@ def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, ve
     return saccade_windows, saccade_index
 
 
-def find_eye_offsets(x_eye, y_eye, align_segment=3, fixation_target=0, fixation_window=(-200, 0), epsilon_eye=0.1, max_iter=10,
-                         ind_cushion=20, acceleration_thresh=1, velocity_thresh=30):
-    """ This subtracts the DC offsets in eye position and velocity by taking the mode of their values in the fixation window aligned on
-        align_segment.  After this first adjustment, saccades are found in the fixation window and the mode eye position and velocity
-        values are recomputed without saccades and subtracting again.  This is repeated recursively until the absolute value of the
-        position and velocity mode during fixation window is less than epsilon_eye or max_iter recursive calls is reached.  The call to
-        find_saccade_windows means that this variable will also be assigned to maestro_PL2_data.  The modes
-        for both position and velocity are only computed for values where eye_velocity is less than velocity_thresh.  DC offsets in
-        eye velocity greater than velocity_thresh will cause this to fail.
-        """
-
-    delta_eye = np.zeros(len(maestro_PL2_data))
+def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, epsilon_eye=0.1, max_iter=10,
+                    ind_cushion=20, acceleration_thresh=1, speed_thresh=30):
+    """ Find the DC offsets in eye position and velocity during the window
+    input in the position and velocity data. Done by taking the mode of their
+    values, then finding saccades using 'find_saccade_windows', then repeating
+    iteratively until convergence within epsilon_eye improveming over iterations
+    or max_iter iterations is reached. The saccade removal threshold implies
+    that the mode value of eye velocity during the input data needs to be less
+    than speed_thresh for this to work. The script attempts to make this true
+    but it should be noted that a sufficient sample is needed for success, such
+    that there are enough saccade-free data samples to get a good estimate. To
+    this end, it probably makes the most sense that the mode eye velocity across
+    all (0, 0) fixation epochs is first subtracted.
+    Data inputs are assumed to be 1D numpy arrays.
+    Output: offsets = [x_pos_offset, y_pos_offset, x_vel_offset, y_vel_offset]
+    """
+    # Need to copy data so not overwritten in the inputs
+    x_pos, y_pos = np.copy(x_pos), np.copy(y_pos)
+    x_vel, y_vel = np.copy(x_vel), np.copy(y_vel)
+    offsets = [0, 0, 0, 0]
+    # Everything will be found as a saccade unless this is satisfied
+    eye_speed = np.sqrt(x_vel**2 + y_vel**2)
     n_iters = 0
-    next_trial_list = [x for x in range(0, len(maestro_PL2_data))]
-    while n_iters < max_iter and len(next_trial_list) > 0:
-        trial_indices = next_trial_list
-        next_trial_list = []
-        for trial in trial_indices:# len(maestro_PL2_data)):
-            if not maestro_PL2_data[trial]['maestro_events'][align_segment]:
-                # Current trial lacks desired align_segment
-                continue
-
-            align_time = maestro_PL2_data[trial]['targets'][fixation_target].get_next_refresh(maestro_PL2_data[trial]['maestro_events'][align_segment][0])
-            time_index = np.arange(align_time + fixation_window[0], align_time + fixation_window[1] + 1, 1, dtype='int')
-
-            if 'saccade_windows' in maestro_PL2_data[trial]:
-                saccade_index = maestro_PL2_data[trial]['saccade_index'][time_index]
-                time_index = time_index[~saccade_index]
-                if np.all(saccade_index):
-                    # Entire fixation window has been marked as a saccade
-                    # TODO This is an error, or needs to be fixed, or skipped??
-                    print("Entire fixation window marked as saccade for trial {} and was skipped".format(trial))
-                    continue
-
-            if (not np.any(np.abs(maestro_PL2_data[trial]['eye_velocity'][0][time_index]) < velocity_thresh) or
-                not np.any(np.abs(maestro_PL2_data[trial]['eye_velocity'][1][time_index]) < velocity_thresh)):
-                # Entire fixation window is over velocity threshold
-                # TODO This is an error, or needs to be fixed, or skipped??
-                print("Entire fixation window marked as saccade for trial {} and was skipped".format(trial))
-                continue
-
-            # Get modes of eye data in fixation window, excluding saccades and velocity times over threshold, then subtract them from eye data
-            horizontal_vel_mode, n_horizontal_vel_mode = stats.mode(maestro_PL2_data[trial]['eye_velocity'][0][time_index][np.abs(maestro_PL2_data[trial]['eye_velocity'][0][time_index]) < velocity_thresh])
-            maestro_PL2_data[trial]['eye_velocity'][0] = maestro_PL2_data[trial]['eye_velocity'][0] - horizontal_vel_mode
-            vertical_vel_mode, n_vertical_vel_mode = stats.mode(maestro_PL2_data[trial]['eye_velocity'][1][time_index][np.abs(maestro_PL2_data[trial]['eye_velocity'][1][time_index]) < velocity_thresh])
-            maestro_PL2_data[trial]['eye_velocity'][1] = maestro_PL2_data[trial]['eye_velocity'][1] - vertical_vel_mode
-
-
-            # Position mode is also taken when VELOCITY is less than threshold and adjusted by the difference between eye data and target position
-            h_position_offset = maestro_PL2_data[trial]['eye_position'][0][time_index][np.abs(maestro_PL2_data[trial]['eye_velocity'][0][time_index]) < velocity_thresh] - np.nanmean(maestro_PL2_data[trial]['targets'][fixation_target].position[0, time_index])
-            horizontal_pos_mode, n_horizontal_pos_mode = stats.mode(h_position_offset)
-            maestro_PL2_data[trial]['eye_position'][0] = maestro_PL2_data[trial]['eye_position'][0] - horizontal_pos_mode
-            v_position_offset = maestro_PL2_data[trial]['eye_position'][1][time_index][np.abs(maestro_PL2_data[trial]['eye_velocity'][1][time_index]) < velocity_thresh] - np.nanmean(maestro_PL2_data[trial]['targets'][fixation_target].position[1, time_index])
-            vertical_pos_mode, n_vertical_pos_mode = stats.mode(v_position_offset)
-            maestro_PL2_data[trial]['eye_position'][1] = maestro_PL2_data[trial]['eye_position'][1] - vertical_pos_mode
-
-            delta_eye[trial] = np.amax(np.abs((horizontal_vel_mode, vertical_vel_mode, horizontal_pos_mode, vertical_pos_mode)))
-            if delta_eye[trial] >= epsilon_eye:
-                # This trial's offsets aren't good enough so try again next loop
-                next_trial_list.append(trial)
-
-        maestro_PL2_data = find_saccade_windows(maestro_PL2_data, ind_cushion=ind_cushion, acceleration_thresh=acceleration_thresh, velocity_thresh=velocity_thresh)
+    while np.all(eye_speed >= speed_thresh):
+        x_vel_median = np.median(x_vel)
+        y_vel_median = np.median(y_vel)
+        x_vel = x_vel - x_vel_median
+        y_vel = y_vel - y_vel_median
+        eye_speed = np.sqrt(x_vel**2 + y_vel**2)
         n_iters += 1
+        offsets[2] += x_vel_median
+        offsets[3] += y_vel_median
+        if n_iters >= max_iter:
+            raise ValueError("Input eye velocity data's offset is much greater than speed threshold and could not be fixed")
 
-    return maestro_PL2_data
+    # Now find mode velocities and saccades and iteratively reduce
+    delta_eye = 0
+    n_iters = 0
+    # Start assuming no saccades
+    saccade_index = np.zeros(x_vel.shape[0], dtype='bool')
+    while n_iters < max_iter:
+        # Update velocity
+        x_vel_mode, _ = mode1D(x_vel[~saccade_index])
+        x_vel = x_vel - x_vel_mode
+        offsets[2] += x_vel_mode
+        y_vel_mode, _ = mode1D(y_vel[~saccade_index])
+        y_vel = y_vel - y_vel_mode
+        offsets[3] = y_vel_mode
+
+        # Update position
+        x_pos_mode, _ = mode1D(x_pos[~saccade_index])
+        x_pos = x_pos - x_pos_mode
+        offsets[0] += x_pos_mode
+        y_pos_mode, _ = mode1D(y_pos[~saccade_index])
+        y_pos = y_pos - y_pos_mode
+        offsets[1] = y_pos_mode
+
+        # Current modes are the magnitude of the delta offset update
+        delta_eye = np.amax(np.abs((x_pos_mode, y_pos_mode, x_vel_mode, y_vel_mode)))
+        if delta_eye < epsilon_eye:
+            # This trial's offsets are good enough so we are done
+            break
+        else:
+            # Try again to reduce offsets. Update saccade windows/index
+            _, saccade_index = find_saccade_windows(x_vel, y_vel,
+                                ind_cushion=ind_cushion,
+                                acceleration_thresh=acceleration_thresh,
+                                speed_thresh=speed_thresh)
+            n_iters += 1
+
+    # offsets = [x_pos_offset, y_pos_offset, x_vel_offset, y_vel_offset]
+    return offsets
