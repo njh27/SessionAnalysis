@@ -1,6 +1,6 @@
 import numpy as np
 
-
+import matplotlib.pyplot as plt
 
 def mode1D(x):
     # Faster and without scipy way to find mode of 1D array
@@ -109,6 +109,7 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, epsilon_eye=0.1, max_iter=10,
         y_vel = y_vel - y_vel_median
         eye_speed = np.sqrt(x_vel**2 + y_vel**2)
         n_iters += 1
+        print("Attempted offset adjustment", n_iters)
         offsets[2] += x_vel_median
         offsets[3] += y_vel_median
         if n_iters >= max_iter:
@@ -117,25 +118,38 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, epsilon_eye=0.1, max_iter=10,
     # Now find mode velocities and saccades and iteratively reduce
     delta_eye = 0
     n_iters = 0
+    _, saccade_index = find_saccade_windows(x_vel, y_vel,
+                        ind_cushion=ind_cushion,
+                        acceleration_thresh=acceleration_thresh,
+                        speed_thresh=speed_thresh)
     # Start assuming no saccades
-    saccade_index = np.zeros(x_vel.shape[0], dtype='bool')
+    # saccade_index = np.zeros(x_vel.shape[0], dtype='bool')
     while n_iters < max_iter:
-        # Update velocity
-        x_vel_mode, _ = mode1D(x_vel[~saccade_index])
-        x_vel = x_vel - x_vel_mode
-        offsets[2] += x_vel_mode
-        y_vel_mode, _ = mode1D(y_vel[~saccade_index])
-        y_vel = y_vel - y_vel_mode
-        offsets[3] = y_vel_mode
+        print("starting offset iter", n_iters+1)
+        try:
+            # Update velocity
+            x_vel_mode, _ = mode1D(x_vel[~saccade_index])
+            x_vel = x_vel - x_vel_mode
+            offsets[2] += x_vel_mode
+            y_vel_mode, _ = mode1D(y_vel[~saccade_index])
+            y_vel = y_vel - y_vel_mode
+            offsets[3] = y_vel_mode
 
-        # Update position
-        x_pos_mode, _ = mode1D(x_pos[~saccade_index])
-        x_pos = x_pos - x_pos_mode
-        offsets[0] += x_pos_mode
-        y_pos_mode, _ = mode1D(y_pos[~saccade_index])
-        y_pos = y_pos - y_pos_mode
-        offsets[1] = y_pos_mode
-
+            # Update position
+            x_pos_mode, _ = mode1D(x_pos[~saccade_index])
+            x_pos = x_pos - x_pos_mode
+            offsets[0] += x_pos_mode
+            y_pos_mode, _ = mode1D(y_pos[~saccade_index])
+            y_pos = y_pos - y_pos_mode
+            offsets[1] = y_pos_mode
+        except:
+            print(np.count_nonzero(~saccade_index))
+            print(_)
+            plt.plot(x_vel)
+            plt.plot(y_vel)
+            plt.show()
+            raise
+        print("subtracted modes", x_vel_mode, y_vel_mode)
         # Current modes are the magnitude of the delta offset update
         delta_eye = np.amax(np.abs((x_pos_mode, y_pos_mode, x_vel_mode, y_vel_mode)))
         if delta_eye < epsilon_eye:

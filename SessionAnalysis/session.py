@@ -500,7 +500,7 @@ class Session(object):
                 continue
         return None
 
-    def get_data_list(self, series_name, time_window, blocks=None,
+    def get_data_list(self, series_name, time_window=None, blocks=None,
                       trial_sets=None):
         """ Returns a list of length trials, where each element of the list
         contains the timeseries data in the requested time window. If the time
@@ -518,7 +518,11 @@ class Session(object):
             trial_obj = self._trial_lists[data_name][t]
             trial_ts = trial_obj._timeseries
             try:
-                trial_tinds = trial_ts.find_index_range(time_window[0], time_window[1])
+                if time_window is None:
+                    # Use all indices
+                    trial_tinds = trial_ts.indices()
+                else:
+                    trial_tinds = trial_ts.find_index_range(time_window[0], time_window[1])
             except IndexError:
                 continue
             data_out.append(trial_obj['data'][series_name][trial_tinds])
