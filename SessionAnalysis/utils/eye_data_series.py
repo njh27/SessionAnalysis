@@ -79,7 +79,8 @@ def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, sp
     return saccade_windows, saccade_index
 
 
-def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, epsilon_eye=0.1, max_iter=10,
+def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
+                    epsilon_eye=0.1, max_iter=10,
                     ind_cushion=20, acceleration_thresh=1, speed_thresh=30):
     """ Find the DC offsets in eye position and velocity during the window
     input in the position and velocity data. Done by taking the mode of their
@@ -137,6 +138,8 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, epsilon_eye=0.1, max_iter=10,
 
             # Update position
             x_pos_mode, _ = mode1D(x_pos[~saccade_index])
+            print("Subtract target pos here!")
+            raise ValueError("here")
             x_pos = x_pos - x_pos_mode
             offsets[0] += x_pos_mode
             y_pos_mode, _ = mode1D(y_pos[~saccade_index])
