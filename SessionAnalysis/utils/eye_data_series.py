@@ -94,6 +94,8 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
     this end, it probably makes the most sense that the mode eye velocity across
     all (0, 0) fixation epochs is first subtracted.
     Data inputs are assumed to be 1D numpy arrays.
+    Optional target position input can be used to adjust trials where fixation
+    is not at (0, 0). The mode of the target vectors will be used
     Output: offsets = [x_pos_offset, y_pos_offset, x_vel_offset, y_vel_offset]
     """
     # Need to copy data so not overwritten in the inputs
@@ -110,12 +112,19 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
         y_vel = y_vel - y_vel_median
         eye_speed = np.sqrt(x_vel**2 + y_vel**2)
         n_iters += 1
-        print("Attempted offset adjustment", n_iters)
         offsets[2] += x_vel_median
         offsets[3] += y_vel_median
         if n_iters >= max_iter:
             raise ValueError("Input eye velocity data's offset is much greater than speed threshold and could not be fixed")
 
+    if x_targ is None:
+        x_targ = 0.
+    else:
+        x_targ = mode1D(x_targ)
+    if y_targ is None:
+        y_targ = 0.
+    else:
+        y_targ = mode1D(y_targ)
     # Now find mode velocities and saccades and iteratively reduce
     delta_eye = 0
     n_iters = 0
@@ -138,11 +147,11 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
 
             # Update position
             x_pos_mode, _ = mode1D(x_pos[~saccade_index])
-            print("Subtract target pos here!")
-            raise ValueError("here")
+            x_pos_mode -= x_targ
             x_pos = x_pos - x_pos_mode
             offsets[0] += x_pos_mode
             y_pos_mode, _ = mode1D(y_pos[~saccade_index])
+            y_pos_mode -= y_targ
             y_pos = y_pos - y_pos_mode
             offsets[1] = y_pos_mode
         except:

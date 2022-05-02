@@ -6,7 +6,7 @@ Written by David J. Herzfeld <herzfeldd@gmail.com>
 
 import numpy as np
 import sys # Required for floating point epsilon
-import copy
+
 
 
 class Timeseries(object):
@@ -66,6 +66,9 @@ class Timeseries(object):
         just a convenience function that iteratively calls "find_index". If
         a consecutive range of indices are desired, using "find_index_range"
         should be much faster. """
+        if type(values) == 'int':
+            # Only scalar integer input
+            values = [values]
         indices = np.zeros(len(values), dtype=np.int32)
         for ind, v in enumerate(values):
             indices[ind] = self.find_index(v)
@@ -144,11 +147,15 @@ class Timeseries(object):
 
     def __add__(self, y):
         """Adds an offset to the timeseries"""
-        return Timeseries(self.start + y, self.stop + y, self.dt)
+        self.start += y
+        self.stop += y
+        return self
 
     def __sub__(self, y):
         """Subtracts an offset from the timeseries"""
-        return Timeseries(self.start - y, self.stop - y, self.dt)
+        self.start -= y
+        self.stop -= y
+        return self
 
     def __repr__(self):
         """Defines the printing function for this class"""
@@ -156,11 +163,17 @@ class Timeseries(object):
 
     def __mul__(self, m):
         """Defines multiplication of a timeseries object"""
-        return Timeseries(self.start * m, self.stop * m, self.dt * m)
+        self.start *= m
+        self.stop *= m
+        self.dt *= m
+        return self
 
     def __truediv__(self, d):
         """Floating point division"""
-        return Timeseries(self.start / d, self.stop / d, self.dt / d)
+        self.start /= d
+        self.stop /= d
+        self.dt /= d
+        return self
 
     def __lt__(self, f):
         """Less than operator"""
@@ -181,10 +194,6 @@ class Timeseries(object):
     def __array__(self):
         """Converts the timeseries into a numpy array"""
         return self.timeseries()
-
-    def __copy__(self):
-        """Returns a completely new copy"""
-        return copy.deepcopy(self)
 
     @classmethod
     def is_regular(cls, timeseries, eps=0.10):

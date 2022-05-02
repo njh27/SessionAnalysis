@@ -144,6 +144,11 @@ class Trial(dict):
             # No trial data present
             pass
 
+    def get_data(self, series, time_inds):
+        """ Gets data from data series 'series' within the specified TIME
+        indices RELATIVE to the current timeseries alignment!. """
+        return self['data'][series][self._timeseries.find_indices(time_inds)]
+
     def get(self, key):
         return self.__getitem__(key)
 
