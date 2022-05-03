@@ -17,10 +17,7 @@ def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, sp
     # Force ind_cushion to be integer so saccade windows are integers that can be used as indices
     ind_cushion = np.array(ind_cushion).astype('int')
 
-    # Make this just for 1 trial!
     # Compute normalized eye speed vector and corresponding acceleration
-    # print(trial)
-    # print(maestro_PL2_data[trial]['horizontal_eye_velocity'])
     eye_speed = np.sqrt(x_vel**2 + y_vel**2)
     eye_acceleration = np.zeros(eye_speed.shape[0])
     eye_acceleration[1:] = np.diff(eye_speed, n=1, axis=0)
@@ -80,7 +77,7 @@ def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, sp
 
 
 def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
-                    epsilon_eye=0.1, max_iter=10,
+                    epsilon_eye=0.1, max_iter=10, return_saccades=False,
                     ind_cushion=20, acceleration_thresh=1, speed_thresh=30):
     """ Find the DC offsets in eye position and velocity during the window
     input in the position and velocity data. Done by taking the mode of their
@@ -120,22 +117,21 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
     if x_targ is None:
         x_targ = 0.
     else:
-        x_targ = mode1D(x_targ)
+        x_targ, _ = mode1D(x_targ)
     if y_targ is None:
         y_targ = 0.
     else:
-        y_targ = mode1D(y_targ)
+        y_targ, _ = mode1D(y_targ)
     # Now find mode velocities and saccades and iteratively reduce
     delta_eye = 0
     n_iters = 0
-    _, saccade_index = find_saccade_windows(x_vel, y_vel,
+    saccade_windows, saccade_index = find_saccade_windows(x_vel, y_vel,
                         ind_cushion=ind_cushion,
                         acceleration_thresh=acceleration_thresh,
                         speed_thresh=speed_thresh)
     # Start assuming no saccades
     # saccade_index = np.zeros(x_vel.shape[0], dtype='bool')
     while n_iters < max_iter:
-        print("starting offset iter", n_iters+1)
         try:
             # Update velocity
             x_vel_mode, _ = mode1D(x_vel[~saccade_index])
@@ -161,7 +157,6 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
             plt.plot(y_vel)
             plt.show()
             raise
-        print("subtracted modes", x_vel_mode, y_vel_mode)
         # Current modes are the magnitude of the delta offset update
         delta_eye = np.amax(np.abs((x_pos_mode, y_pos_mode, x_vel_mode, y_vel_mode)))
         if delta_eye < epsilon_eye:
@@ -175,5 +170,12 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
                                 speed_thresh=speed_thresh)
             n_iters += 1
 
-    # offsets = [x_pos_offset, y_pos_offset, x_vel_offset, y_vel_offset]
-    return offsets
+    if return_saccades:
+        # Computed according to current offsets of velocity
+        saccade_windows, saccade_index = find_saccade_windows(x_vel, y_vel,
+                            ind_cushion=ind_cushion,
+                            acceleration_thresh=acceleration_thresh,
+                            speed_thresh=speed_thresh)
+        return offsets, saccade_windows, saccade_index
+    else:
+        return offsets

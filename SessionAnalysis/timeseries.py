@@ -17,6 +17,11 @@ class Timeseries(object):
     we store only the start, stop, and delta_t which defines the timeseries.
     It is important that any timeseries which reference this timeseries
     correctly interpolated to the timeseries associated with this timeseries.
+
+    I still think unexpected behavior and rounding errors could occur if start,
+    stop, and dt are not all integers. So this may be worth requiring at some
+    point in the future, or making the underlying functions all operate on
+    integers.
     """
 
     def __init__(self, start, stop, dt):
@@ -58,7 +63,7 @@ class Timeseries(object):
         """
         if value < self.start or value > self.stop:
             raise IndexError("Index for value {0} is out of timeseries range.".format(value))
-        index = int(round((value - self.start) / self.dt))
+        index = np.int32(round((value - self.start) / self.dt))
         return index
 
     def find_indices(self, values):
@@ -66,21 +71,42 @@ class Timeseries(object):
         just a convenience function that iteratively calls "find_index". If
         a consecutive range of indices are desired, using "find_index_range"
         should be much faster. """
-        if type(values) == 'int':
+        if isinstance(values, int):
             # Only scalar integer input
             values = [values]
+        elif isinstance(values, slice):
+            step = 1 if values.step is None else values.step
+            start = self.start if values.start is None else values.start
+            if step < 0:
+                stop = self.start if values.stop is None else values.stop
+            else:
+                stop = self.stop if values.stop is None else values.stop
+            return self.find_index_range(start, stop, step)
         indices = np.zeros(len(values), dtype=np.int32)
         for ind, v in enumerate(values):
             indices[ind] = self.find_index(v)
         return indices
 
-    def find_index_range(self, start, stop):
-        """Returns a range of indices corresponding to a time window"""
+    def find_index_range(self, start, stop, step=1):
+        """Returns a range of indices corresponding to a time window. """
+        if step < 0:
+            return self.__find_index_range_rev(start, stop, step)
         if start > stop:
-            raise IndexError("Start value must be <= stop value.")
+            raise IndexError("Start value must be <= stop value if positive step size is used.")
         t1 = self.find_index(start)
-        t2 = self.find_index(stop)
-        return np.arange(t1, t2, dtype=np.int32)
+        t2 = self.find_index(stop) + 1 # Plus 1 for slicing through last value
+        return np.arange(t1, t2, step, dtype=np.int32)
+
+    def __find_index_range_rev(self, start, stop, step=-1):
+        """Returns a range of indices corresponding to a time window with a
+        negative step size, from stop to start. """
+        if step > 0:
+            return self.find_index_range(start, stop, step)
+        if stop > start:
+            raise IndexError("Start value must be < stop value if negative step size is used.")
+        t1 = self.find_index(start)
+        t2 = self.find_index(stop) - 1 # Minus 1 for slicing through last value
+        return np.arange(t1, t2, step, dtype=np.int32)
 
     def valid_index_range(self, start, stop):
         """Returns a vector of the indices that are present in the timeseries
@@ -128,12 +154,13 @@ class Timeseries(object):
     def __getitem__(self, index):
         """Overrides the [] operator for this timeseries"""
         if isinstance(index, slice):
-            start = 0 if index.start is None else index.start
-            stop = self.n if index.stop is None else index.stop
-            step = 1 if index.step is None else index.step
-            return Timeseries(start * self.dt + self.start,
-                              stop * self.dt + self.start,
-                              self.dt * step)
+            raise ValueError("Slice of timeseries not currently defined.")
+            # start = 0 if index.start is None else index.start
+            # stop = self.n if index.stop is None else index.stop
+            # step = 1 if index.step is None else index.step
+            # return Timeseries(start * self.dt + self.start,
+            #                   stop * self.dt + self.start,
+            #                   self.dt * step)
         elif isinstance(index, list) or isinstance(index, tuple) or \
             (isinstance(index, np.ndarray) and index.ndim == 1):
             return [self[int(i)] for i in index]

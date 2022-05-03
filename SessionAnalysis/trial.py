@@ -7,6 +7,24 @@ from ReadMaestro.target import MaestroTarget
 
 
 
+class DataGetter(object):
+    """ This is a wrapper so that standard slicing and indexing can be used
+    for the returned values of get_data from Trial class. Given the specified
+    data series (Numpy 1D array) it will return the values of the data at the
+    time points specified by "time" in the __getitem__ method. This was not
+    intended to be used directly but rather returned and by get_data and then
+    not used otherwise except to slice the disired data.
+    """
+    def __init__(self, data, timeseries):
+        self.data = data
+        self._timeseries = timeseries
+
+    def __getitem__(self, time):
+        inds = self._timeseries.find_indices(time)
+        return self.data[inds]
+
+
+
 class Trial(dict):
     """ A class containing a generic trial and its associated timeseries and
     events. Data are organized and class functions are definted to make it
@@ -123,31 +141,54 @@ class Trial(dict):
             else:
                 # Use MaestroTarget length
                 d_len = len(self.data)
-        n_steps = int(round((d_len - start_data) / dt_data))
-        if n_steps != d_len:
+        # Steps are 1 less than the length
+        n_steps = int(round((d_len - start_data) / dt_data)) - 1
+        if ( (n_steps + 1) != d_len):
             raise ValueError("Length of input data does not match number of steps expected from inputs dt_data and start_data.")
+        # These steps should take right up to last time, which is index = len -1
         stop_data = start_data + dt_data * n_steps
         self._timeseries = Timeseries(start_data, stop_data, dt_data)
         self._aligntime = start_data
         self._alignevent = None
-        self.duration = len(self._timeseries)
+        self.duration = d_len
         self.dur = self.duration
 
         return None
 
     def _check_trial_data(self):
+        """
+        """
+
         if len(self.data) > 0:
-            for data_key in self.data.keys():
-                pass
+            for dk_ind, data_key in enumerate(self.data.keys()):
+                if dk_ind == 0:
+                    # Check timeseries is valid for all indices (already checked all the
+                    # same length so only check 1 here.)
+                    try:
+                        t_check = self._timeseries.start
+                        self.data[data_key][self._timeseries.find_index(t_check)]
+                    except IndexError:
+                        raise ValueError("Start time index not valid for time {0} and index {1} with data length {2}.".format(t_check, self._timeseries.find_index(t_check), self.duration))
+                    try:
+                        t_check = self._timeseries.stop
+                        self.data[data_key][self._timeseries.find_index(t_check)]
+                    except IndexError:
+                        raise ValueError("Stop time index not valid for time {0} and index {1} with data length {2}.".format(t_check, self._timeseries.find_index(t_check), self.duration))
+                else:
+                    pass
                 # print("Should set to timeseries or Numpy array in _set_trial_data")
         else:
             # No trial data present
             pass
 
-    def get_data(self, series, time_inds):
+    def get_data(self, series):
         """ Gets data from data series 'series' within the specified TIME
-        indices RELATIVE to the current timeseries alignment!. """
-        return self['data'][series][self._timeseries.find_indices(time_inds)]
+        indices RELATIVE to the current timeseries alignment!. This is done
+        by making a "DataGetter" object so that the series function can
+        be directly sliced using __getitem__."""
+        dg = DataGetter(self['data'][series], self._timeseries)
+        # return self['data'][series][self._timeseries.find_indices(time_inds)]
+        return dg
 
     def get(self, key):
         return self.__getitem__(key)
