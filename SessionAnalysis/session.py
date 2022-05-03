@@ -677,12 +677,12 @@ class Session(object):
         trial_windows, _ = find_trial_blocks(self._trial_lists['__main'], trial_names, **criteria)
         if type(block_names) == list:
             if len(trial_windows) > len(block_names):
-                raise RunTimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
+                raise RuntimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
             for tw_ind in range(0, len(trial_windows)):
                 self.blocks[block_names[tw_ind]] = trial_windows[tw_ind]
         else:
             if len(trial_windows) > 1:
-                raise RunTimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
+                raise RuntimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
             else:
                 self.blocks[block_name] = trial_windows[0]
         return None
