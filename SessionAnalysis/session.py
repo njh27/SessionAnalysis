@@ -33,7 +33,7 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
     max_consec_absent : int
         Maximum number of trials within a block that are absent from the list
         of 'trial_names' consecutively and can still be considered the correct
-        block.
+        block. 
     max_absent_pct : int
         Maximum number of trials within a block that are absent from the list
         of 'trial_names' and can still be considered the correct block.
@@ -47,6 +47,10 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
         A list of Window objects indicating the beginning and end of each block
         found that satisfies the input criteria.
     """
+    if not isinstance(trial_names, list):
+        raise ValueError("trial_names must be a list of trial names.")
+    if not isinstance(ignore_trial_names, list):
+        raise ValueError("ignore_trial_names must be a list of trial names.")
     if (max_consec_absent < np.inf) and (max_consec_absent > 0):
         if max_absent < max_consec_absent:
             max_absent = np.inf
@@ -59,7 +63,6 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
     for trial in range(0, len(trial_data)):
         if trial_data[trial]['name'] in trial_names and not check_block:
             # Block starts
-            # print("STARTED block {}".format(trial))
             n_absent = 0
             n_consec_absent = 0
             n_consec_single = 0
@@ -67,7 +70,6 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
             foo_block_start = trial
         elif trial_data[trial]['name'] in trial_names and check_block:
             # Good trial in the current block being checked
-            # print("CONTINUE block {}".format(trial))
             n_consec_absent = 0
             if n_consec_single > max_consec_single:
                 # Block ends
@@ -81,7 +83,6 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
             foo_block_stop = trial
         elif trial_data[trial]['name'] not in trial_names and trial_data[trial]['name'] not in ignore_trial_names and check_block:
             # Bad trial for block
-            # print("FAILED block {}".format(trial))
             n_absent += 1
             if n_absent > max_absent:
                 # Block ends
@@ -91,16 +92,17 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
                 # Block ends
                 final_check = True
                 this_trigger = (trial, 'n_consec_absent exceeded')
-            # else:
-            #     stop_triggers.append('good block')
+            else:
+                pass
+                # stop_triggers.append('good block')
             n_consec_absent += 1
+        elif trial == len(trial_data)-1:
+            final_check = True
+            this_trigger = (trial, 'end of file reached')
+            foo_block_stop = trial
         else:
             pass
         last_trial_name = trial_data[trial]['name']
-
-        if trial == len(trial_data)-1:
-            final_check = True
-            this_trigger = (trial, 'end of file reached')
 
         if final_check:
             # Check block qualities that can't be done without knowing entire block
@@ -667,7 +669,7 @@ class Session(object):
 
         return None
 
-    def add_blocks(self, trial_names, block_names, **criteria):
+    def add_blocks(self, trial_names, block_names, number_names=False, **criteria):
         """ Adds groups of trials to blocks named 'block_names'. Blocks are
         named in order of trial number using the order of names provided in
         block_names. If more blocks are found than block_names given, and error
@@ -675,6 +677,20 @@ class Session(object):
         are ignored.
         """
         trial_windows, _ = find_trial_blocks(self._trial_lists['__main'], trial_names, **criteria)
+        if number_names:
+            if isinstance(block_names, str):
+                block_names = [block_names]
+            new_names = []
+            for tw_ind in range(0, len(trial_windows)):
+                if tw_ind < len(block_names):
+                    new_names.append(block_names[tw_ind])
+                else:
+                    if tw_ind > 99:
+                        raise ValueError("Not ready to handle over 99 newly numbered blocks with only 2 digits!")
+                    digit = f"{tw_ind:02}"
+                    new_names.append(block_names[0] + "_num" + digit)
+            block_names = new_names
+
         if type(block_names) == list:
             if len(trial_windows) > len(block_names):
                 raise RuntimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
