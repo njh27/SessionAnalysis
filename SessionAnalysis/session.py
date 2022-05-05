@@ -33,7 +33,7 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
     max_consec_absent : int
         Maximum number of trials within a block that are absent from the list
         of 'trial_names' consecutively and can still be considered the correct
-        block. 
+        block.
     max_absent_pct : int
         Maximum number of trials within a block that are absent from the list
         of 'trial_names' and can still be considered the correct block.
@@ -96,13 +96,14 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
                 pass
                 # stop_triggers.append('good block')
             n_consec_absent += 1
-        elif trial == len(trial_data)-1:
-            final_check = True
-            this_trigger = (trial, 'end of file reached')
-            foo_block_stop = trial
         else:
             pass
         last_trial_name = trial_data[trial]['name']
+
+        if trial == len(trial_data)-1:
+            final_check = True
+            this_trigger = (trial, 'end of file reached')
+            foo_block_stop = trial
 
         if final_check:
             # Check block qualities that can't be done without knowing entire block
