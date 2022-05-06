@@ -461,7 +461,7 @@ class Session(object):
         "fixation onset" with offset of 100 ms aligns to 100 ms after fixation
         onset = t0.
         """
-        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
+        t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
         for ind in t_inds:
             st = self._session_trial_data[ind]
             if alignment_event not in st['events']:
@@ -513,7 +513,7 @@ class Session(object):
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
-        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
+        t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
         for t in t_inds:
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
@@ -538,7 +538,7 @@ class Session(object):
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
-        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
+        t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
         for t in t_inds:
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
@@ -623,7 +623,7 @@ class Session(object):
         all_blk_indices = all_blk_indices[keep_inds]
         return all_blk_indices
 
-    def __parse_blocks_trial_sets(self, blocks=None, trial_sets=None):
+    def _parse_blocks_trial_sets(self, blocks=None, trial_sets=None):
         """ Primarily parses inputs of None to indicate all trials and
         otherwise calls __blocks_and_trials_to_indices() above for main work.
         """
@@ -634,7 +634,7 @@ class Session(object):
         else:
             return self.__blocks_and_trials_to_indices(blocks, trial_sets)
 
-    def __parse_time_to_indices(self, time):
+    def _parse_time_to_indices(self, time):
         """ Accepts a 2 element time window, slice of times or array/list of
         times and turns them into the corresponding indices using the
         timeseries of the trial. """
@@ -769,7 +769,7 @@ class Session(object):
         being less than the event if ignore_not_found is 'False'. Events that
         return a time of 'None' are treated as being less than event. """
         trials_less_than_event = np.zeros(len(self), dtype='bool')
-        t_inds = self.__parse_blocks_trial_sets(blocks, trial_sets)
+        t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
         for ind in t_inds:
             # Try assuming that event is in events dictionary
             try:
