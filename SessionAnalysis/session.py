@@ -545,8 +545,6 @@ class Session(object):
                 continue
             trial_obj = self._trial_lists[data_name][t]
             self._set_t_win(t, time_window)
-            # print(self._session_trial_data[t]['curr_t_win'])
-            # raise ValueError(t) //825
             valid_tinds = self._session_trial_data[t]['curr_t_win']['valid_tinds']
             out_inds = self._session_trial_data[t]['curr_t_win']['out_inds']
             t_data = np.full(out_inds.shape[0], np.nan)
