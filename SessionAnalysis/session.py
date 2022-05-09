@@ -3,7 +3,8 @@ import numpy as np
 
 
 def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_min=0, block_max=np.inf,
-                      max_absent=0, max_consec_absent=np.inf, max_absent_pct=1, max_consec_single=np.inf):
+                      max_absent=0, max_consec_absent=np.inf, max_absent_pct=1, max_consec_single=np.inf,
+                      n_min_per_trial=0):
     """ Finds the indices of blocks of trials satisfying the input criteria.
     The indices are given so that the number for BLOCK STOP IS ONE GREATER THAN
     THE ACTUAL TRIAL! so that it can be SLICED appropriately.
@@ -40,6 +41,9 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
     max_consec_single : int
         Maximum number of consecutive trials with an identical trial name that
         are allowed to be considered the same block
+    n_min_per_trial : int, list, or np.array of int
+        The minimum number of each corresponding trial name in trial_names that
+        must be found for a block to be considered a valid block.
 
     Returns
     -------
@@ -54,6 +58,16 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
     if (max_consec_absent < np.inf) and (max_consec_absent > 0):
         if max_absent < max_consec_absent:
             max_absent = np.inf
+    if not isinstance(n_min_per_trial, list):
+        n_min_per_trial = [n_min_per_trial]
+    if len(n_min_per_trial) != len(trial_names):
+        if len(n_min_per_trial) == 1:
+            n_min_per_trial = [n_min_per_trial[0] for x in range(0, len(trial_names))]
+    t_name_inds = {}
+    n_t_name = {}
+    for tn_ind, t_name in enumerate(trial_names):
+        n_t_name[t_name] = 0
+        t_name_inds[t_name] = tn_ind
 
     block_trial_windows = []
     stop_triggers = []
@@ -68,6 +82,11 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
             n_consec_single = 0
             check_block = True
             foo_block_start = trial
+            # Reset trial name counts to zero
+            for t_name in trial_names:
+                n_t_name[t_name] = 0
+            # Count current trial
+            n_t_name[trial_data[trial]['name']] += 1
         elif trial_data[trial]['name'] in trial_names and check_block:
             # Good trial in the current block being checked
             n_consec_absent = 0
@@ -81,6 +100,7 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
                 else:
                     n_consec_single = 0
             foo_block_stop = trial
+            n_t_name[trial_data[trial]['name']] += 1
         elif trial_data[trial]['name'] not in trial_names and trial_data[trial]['name'] not in ignore_trial_names and check_block:
             # Bad trial for block
             n_absent += 1
@@ -114,8 +134,20 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
             else:
                 block_len = foo_block_stop - foo_block_start
             if block_len > 0 and check_block:
+                # Check for enough of every trial name
+                n_min_reached = False
+                for t_name in trial_names:
+                    if n_t_name[t_name] >= n_min_per_trial[t_name_inds[t_name]]:
+                        n_min_reached = True
+                    else:
+                        n_min_reached = False
+                        break
+
                 # Subtract 1 from n_absent here because 1 was added to it just to break the block and is not included in it
-                if block_len >= block_min and block_len <= block_max and ((n_absent - 1)/ block_len) <= max_absent_pct:
+                if ( (block_len >= block_min) and
+                     (block_len <= block_max) and
+                     (((n_absent - 1)/block_len) <= max_absent_pct) and
+                     (n_min_reached) ):
                     block_trial_windows.append(Window([foo_block_start, foo_block_stop + 1]))
                     stop_triggers.append(this_trigger)
             check_block = False
