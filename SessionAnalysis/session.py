@@ -734,33 +734,33 @@ class Session(object):
                 self.blocks[block_name] = trial_windows[0]
         return None
 
-    def add_trial_set(self, new_set_name, trials=None, block=None):
+    def add_trial_set(self, new_set_name, trials=None, blocks=None):
         """ Finds the trials satisfying the "trials" criterion that are within
-        the block given by "block". Stores the result under the key
+        the blocks given by "blocks". Stores the result under the key
         "new_set_name" in the dictionary self.trial_sets as a boolean index
         of trials satisfying the criteria.
-        Slice inputs for "trials" will be taken with respect to the input block,
+        Slice inputs for "trials" will be taken with respect to the input blocks,
         for example trials=slice(0:10) will return the first 10 trials starting
-        from the first index of "block". If trials is a string, it is converted
+        from the first index of "blocks". If trials is a string, it is converted
         to a list. All list inputs for trials are assumed to be a list of
         strings of trial names. To scan specific indices for trials, the
         indices must be input in a numpy array rather than a list and will
-        be selected with respect to the input block as done for slices.
+        be selected with respect to the input blocks as done for slices.
         """
         new_set = np.zeros(len(self), dtype='bool')
-        if trials is None and block is None:
+        if trials is None and blocks is None:
             # No blocks or trials specified so add everything
             new_set[:] = True
             self.trial_sets[new_set_name] = new_set
             return None
-        # Making it here means at least 1 of trials or block is NOT None.
-        # Find the indices corresponding to the input block.
-        if block is None:
+        # Making it here means at least 1 of trials or blocks is NOT None.
+        # Find the indices corresponding to the input blocks.
+        if blocks is None:
             t_inds = np.arange(0, len(self))
         else:
-            t_inds = self.__parse_block_to_indices(self, block)
+            t_inds = self.__parse_blocks_to_indices(self, blocks)
         if trials is None:
-            # No trials specified, so add the whole block and we're done
+            # No trials specified, so add the whole blocks and we're done
             new_set[t_inds] = True
             self.trial_sets[new_set_name] = new_set
             return None
@@ -773,7 +773,7 @@ class Session(object):
             for t_name in trials:
                 if type(t_name) != str:
                     raise ValueError("Inputs must be strings of trial names. To input trial indices use a numpy array of integers or python slice object.")
-            # Search for trials with this name in the input block
+            # Search for trials with this name in the input blocks
             for ind in t_inds:
                 if self._session_trial_data[ind]['name'] in trials:
                     new_set[ind] = True
@@ -782,7 +782,7 @@ class Session(object):
             t_inds = t_inds[trials]
             t_set[t_inds] = True
         elif type(trials) == np.ndarray:
-            # Return the trial indices input for this block
+            # Return the trial indices input for this blocks
             t_inds = t_inds[trials]
             t_set[t_inds] = True
         else:
