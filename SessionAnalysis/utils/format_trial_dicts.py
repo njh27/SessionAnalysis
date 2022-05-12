@@ -189,6 +189,7 @@ def maestro_to_apparatus_trial(maestro_data, target_num, dt_data, start_data=0,
     for t in maestro_data:
         tdict = {}
         tdict['name'] = t['header']['name']
+        tdict['used_stab'] = t['header']['UsedStab']
         # Need to format events list to events dictionary
         tdict['events'] = t['events']
         tdict['data'] = {}

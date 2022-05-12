@@ -405,6 +405,7 @@ class ApparatusTrial(Trial):
             raise ValueError("ApparatusTrial object must have a string for data_name.")
         self.__data_alias__ = data_name
         Trial.__init__(self, trial_dict, dt_data, start_data)
+        self.used_stab = trial_dict['used_stab']
 
     def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
