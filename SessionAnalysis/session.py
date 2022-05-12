@@ -780,11 +780,20 @@ class Session(object):
         elif type(trials) == slice:
             # Return the slice of trial indices
             t_inds = t_inds[trials]
-            t_set[t_inds] = True
+            new_set[t_inds] = True
         elif type(trials) == np.ndarray:
-            # Return the trial indices input for this blocks
-            t_inds = t_inds[trials]
-            t_set[t_inds] = True
+            if trials.dtype == 'bool':
+                if trials.shape[0] == len(self):
+                    new_set = trials
+                elif trials.shape[0] == t_inds.shape[0]:
+                    t_inds = t_inds[trials]
+                    new_set[t_inds] = True
+                else:
+                    raise ValueError("Assignment of numpy boolean trial set must be an array equal to len(self) ({0}) or len(blocks) ({1}) input.".format(len(self), t_inds.shape[0]))
+            else:
+                # Return the trial indices input for this blocks
+                t_inds = t_inds[trials]
+                new_set[t_inds] = True
         else:
             raise ValueError("Invalid type used to specify trials. Must be type 'None', 'str' (or list of str), 'slice' or 'numpy.ndarray'.")
         self.trial_sets[new_set_name] = new_set
@@ -845,6 +854,9 @@ class Session(object):
         if (type(indices) == int) or (d_inds.ndim == 0):
             # Only 1 index input for deletion
             del self[indices]
+            return None
+        if d_inds.shape[0] == 0:
+            # Nothing to delete
             return None
         # Multiple indices are present. Use unique, sorted, in reverse
         d_inds = np.unique(d_inds)[-1::-1]
