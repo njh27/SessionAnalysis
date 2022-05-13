@@ -613,6 +613,8 @@ class Session(object):
         # block is not a Window object so try to find it in dictionary
         try:
             b_win = self._get_block(block)
+            if b_win is None:
+                return []
             t_inds = np.arange(b_win[0], b_win[1], dtype=np.int32)
             return t_inds
         except KeyError:
@@ -623,11 +625,19 @@ class Session(object):
         strings in a list by calling __parse_block_to_indices. """
         if type(blocks) != list:
             blocks = [blocks]
+        if len(blocks) == 0:
+            # Blocks is empty
+            return []
         all_blk_indices = []
         for blk in blocks:
             all_blk_indices.extend(self.__parse_block_to_indices(blk))
-        all_blk_indices = np.int32(np.hstack(all_blk_indices))
-        all_blk_indices = np.unique(all_blk_indices) # Unique AND sorted
+        if len(all_blk_indices) > 0:
+            # Can only do this if indices are found
+            all_blk_indices = np.int32(np.hstack(all_blk_indices))
+            all_blk_indices = np.unique(all_blk_indices) # Unique AND sorted
+        else:
+            # Still return numpy indices
+            all_blk_indices = np.array([], dtype=np.int32)
         return all_blk_indices
 
     def __blocks_and_trials_to_indices(self, blocks, trial_sets):
@@ -923,6 +933,9 @@ class Session(object):
     def __verify_data_lengths(self):
         for blk in self.blocks.keys():
             blk_win = self.blocks[blk]
+            if blk_win is None:
+                # Don't check empty blocks
+                continue
             if ( (blk_win[0] < 0) or (blk_win[0] > len(self))
                 or (blk_win[1] < 1) or (blk_win[1] > len(self)) ):
                 raise RuntimeError("The block window for block {0} has moved beyond the range of viable trials. Likely the result of error during trial deletion.".format(blk))
@@ -950,6 +963,9 @@ class Session(object):
         checked_wins = set()
         for blk in self.blocks:
             blk_win = self.blocks[blk]
+            if blk_win is None:
+                # Block doesn't exist so skip
+                continue
             if blk_win in checked_wins:
                 # Block windows can be aliased so don't duplicate
                 continue
