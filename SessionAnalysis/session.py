@@ -585,6 +585,23 @@ class Session(object):
 
         return np.vstack(data_out)
 
+    def get_data_trial(self, trial_index, series_name, time_window):
+        """ Returns a n trials by m time points numpy array of the requested
+        timeseries data for ONE TRIAL. Missing data points are filled in with
+        np.nan. Call "data_names()" to get a list of available data names. """
+        data_out = []
+        data_name = self.__series_names[series_name]
+        trial_obj = self._trial_lists[data_name][trial_index]
+        self._set_t_win(trial_index, time_window)
+        valid_tinds = self._session_trial_data[trial_index]['curr_t_win']['valid_tinds']
+        out_inds = self._session_trial_data[trial_index]['curr_t_win']['out_inds']
+        if not self._session_trial_data[trial_index]['incl_align']:
+            # Trial is not aligned due to missing event
+            return np.zeros((0, out_inds.shape[0]))
+        t_data = np.full(out_inds.shape[0], np.nan)
+        t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
+        return t_data
+
     def _get_trial_set(self, set_name):
         """Tries to get the trial indices associated with the specified trial
         set string and throws a more appropriate error during failure. """

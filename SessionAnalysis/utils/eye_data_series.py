@@ -9,6 +9,52 @@ def mode1D(x):
     return values[m], counts[m]
 
 
+def get_saccades(sess, time_window, trial_index):
+    """ Instead of adding saccade windows to session and recomputing eye data
+    in place, here we make a copy of it first and output the result instead.
+    Function operates on 1 trial at a time. """
+    # Get all eye data during initial fixation
+    series_fix_data = {}
+    # Hard coded names!
+    series_names = ['horizontal_eye_position',
+                    'vertical_eye_position',
+                    'horizontal_eye_velocity',
+                    'vertical_eye_velocity']
+    for sn in series_names:
+        series_fix_data[sn] = sess.get_data_trial(trial_index, sn, time_window)
+
+    # Find fixation eye offset for each trial, adjust its data, then nan saccades
+    # Adjust to target position at -100 ms
+    offsets = find_eye_offsets(
+                    series_fix_data['horizontal_eye_position'],
+                    series_fix_data['vertical_eye_position'],
+                    series_fix_data['horizontal_eye_velocity'],
+                    series_fix_data['vertical_eye_velocity'],
+                    x_targ=sess[trial_index].get_data('xpos')[-100],
+                    y_targ=sess[trial_index].get_data('ypos')[-100],
+                    epsilon_eye=0.1, max_iter=10, return_saccades=False,
+                    ind_cushion=20, acceleration_thresh=1, speed_thresh=30)
+
+    for sn in series_names:
+        if sn == "horizontal_eye_position":
+            series_fix_data[sn] -= offsets[0]
+        elif sn == "vertical_eye_position":
+            series_fix_data[sn] -= offsets[1]
+        elif sn == "horizontal_eye_velocity":
+            series_fix_data[sn] -= offsets[2]
+        elif sn == "vertical_eye_velocity":
+            series_fix_data[sn] -= offsets[3]
+        else:
+            raise RuntimeError("Could not find data series name for offsets.")
+
+    x_vel = series_fix_data['horizontal_eye_velocity']
+    y_vel = series_fix_data['vertical_eye_velocity']
+    saccade_windows, saccade_index = find_saccade_windows(
+            x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, speed_thresh=30)
+
+    return series_fix_data, saccade_windows, saccade_index
+
+
 def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, speed_thresh=30):
     """ Given the x and y velocity timeseries and threshold criteria, this will
     find the time window indices from saccade start to stop +/- time cushion.
@@ -135,21 +181,21 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
         try:
             # Update velocity
             x_vel_mode, _ = mode1D(x_vel[~saccade_index])
-            x_vel = x_vel - x_vel_mode
+            x_vel -= x_vel_mode
             offsets[2] += x_vel_mode
             y_vel_mode, _ = mode1D(y_vel[~saccade_index])
-            y_vel = y_vel - y_vel_mode
-            offsets[3] = y_vel_mode
+            y_vel -= y_vel_mode
+            offsets[3] += y_vel_mode
 
             # Update position
             x_pos_mode, _ = mode1D(x_pos[~saccade_index])
             x_pos_mode -= x_targ
-            x_pos = x_pos - x_pos_mode
+            x_pos -= x_pos_mode
             offsets[0] += x_pos_mode
             y_pos_mode, _ = mode1D(y_pos[~saccade_index])
             y_pos_mode -= y_targ
-            y_pos = y_pos - y_pos_mode
-            offsets[1] = y_pos_mode
+            y_pos -= y_pos_mode
+            offsets[1] += y_pos_mode
         except:
             print(np.count_nonzero(~saccade_index))
             print(_)
