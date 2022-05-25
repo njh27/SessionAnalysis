@@ -82,6 +82,7 @@ def find_trial_blocks(trial_data, trial_names, ignore_trial_names=[''], block_mi
             n_consec_single = 0
             check_block = True
             foo_block_start = trial
+            foo_block_stop = trial
             # Reset trial name counts to zero
             for t_name in trial_names:
                 n_t_name[t_name] = 0
