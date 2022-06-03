@@ -184,10 +184,10 @@ class Trial(dict):
     def get_data(self, series):
         """ Gets data from data series 'series' within the specified TIME
         indices RELATIVE to the current timeseries alignment!. This is done
-        by making a "DataGetter" object so that the series function can
-        be directly sliced using __getitem__."""
+        by returning a "DataGetter" object so that the series function can
+        be directly sliced using __getitem__.
+        e.g. self.get_data('horizontal_eye_position')[-100:500]"""
         dg = DataGetter(self['data'][series], self._timeseries)
-        # return self['data'][series][self._timeseries.find_indices(time_inds)]
         return dg
 
     def get(self, key):

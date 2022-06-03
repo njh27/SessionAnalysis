@@ -175,9 +175,10 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
                         ind_cushion=ind_cushion,
                         acceleration_thresh=acceleration_thresh,
                         speed_thresh=speed_thresh)
-    # Start assuming no saccades
-    # saccade_index = np.zeros(x_vel.shape[0], dtype='bool')
     while n_iters < max_iter:
+        if np.count_nonzero(~saccade_index) == 0:
+            # No good indices left so just stop where we are
+            break
         try:
             # Update velocity
             x_vel_mode, _ = mode1D(x_vel[~saccade_index])
@@ -197,6 +198,7 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
             y_pos -= y_pos_mode
             offsets[1] += y_pos_mode
         except:
+            print("Failed after", n_iters, "iterations, probably no valid indices left.")
             print(np.count_nonzero(~saccade_index))
             print(_)
             plt.plot(x_vel)
