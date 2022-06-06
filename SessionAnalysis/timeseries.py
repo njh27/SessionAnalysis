@@ -71,7 +71,7 @@ class Timeseries(object):
         just a convenience function that iteratively calls "find_index". If
         a consecutive range of indices are desired, using "find_index_range"
         should be much faster. """
-        if isinstance(values, int):
+        if isinstance(values, int) or isinstance(values, np.integer):
             # Only scalar integer input
             values = [values]
         elif isinstance(values, slice):

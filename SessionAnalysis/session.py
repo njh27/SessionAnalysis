@@ -565,16 +565,18 @@ class Session(object):
 
         return data_out
 
-    def get_data_array(self, series_name, time_window, blocks=None, trial_sets=None):
+    def get_data_array(self, series_name, time_window, blocks=None,
+                        trial_sets=None, return_inds=False):
         """ Returns a n trials by m time points numpy array of the requested
         timeseries data. Missing data points are filled in with np.nan.
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
-        for t in t_inds:
+        for i, t in enumerate(t_inds):
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
+                t_inds = np.delete(t_inds, i)
                 continue
             trial_obj = self._trial_lists[data_name][t]
             self._set_t_win(t, time_window)
@@ -584,7 +586,11 @@ class Session(object):
             t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
             data_out.append(t_data)
 
-        return np.vstack(data_out)
+        data_out = [] if len(data_out) == 0 else np.vstack(data_out)
+        if return_inds:
+            return data_out, t_inds
+        else:
+            return data_out
 
     def get_data_trial(self, trial_index, series_name, time_window):
         """ Returns a n trials by m time points numpy array of the requested

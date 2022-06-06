@@ -227,3 +227,36 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
         return offsets, saccade_windows, saccade_index
     else:
         return offsets
+
+
+def sacc_amp_nan(x_pos, y_pos):
+    """ Gets the amplitude of each saccade based on the eye position data input.
+    Saccades are assumed to have already been nan'ed in the data and are
+    discovered by the change in eye position from before the nan'ed segment
+    to the position after the nan'ed segment. """
+    sacc_amps = []
+    start_sac = False
+    stop_sac = False
+    start_ind = 0
+    stop_ind = 0
+    for ind in range(0, len(x_pos)):
+        if np.isnan(x_pos[ind]) and start_sac:
+            # Found start of saccade nan value
+            start_ind = ind - 1
+            start_sac = False
+            stop_sac = True
+        elif ~np.isnan(x_pos[ind]) and stop_sac:
+            # Found end of saccade nans
+            stop_ind = ind
+            start_sac = True
+            stop_sac = False
+            # Add this amplitude
+            d_x = x_pos[stop_ind] - x_pos[start_ind]
+            d_y = y_pos[stop_ind] - y_pos[start_ind]
+            sacc_amps.append(np.sqrt((d_x ** 2) + (d_y **2)))
+        elif ~np.isnan(x_pos[ind]) and not start_sac:
+            # Value is not nan so start looking for saccades
+            start_sac = True
+#         else:
+#             print(ind, x_pos[ind], start_sac, stop_sac)
+    return sacc_amps
