@@ -94,7 +94,7 @@ class Timeseries(object):
         if start > stop:
             raise IndexError("Start value must be <= stop value if positive step size is used.")
         t1 = self.find_index(start)
-        t2 = self.find_index(stop) + 1 # Plus 1 for slicing through last value
+        t2 = self.find_index(stop)
         return np.arange(t1, t2, step, dtype=np.int32)
 
     def __find_index_range_rev(self, start, stop, step=-1):

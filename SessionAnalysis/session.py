@@ -462,7 +462,7 @@ class Session(object):
             raise ValueError("Session already has data type {0}.".format(data_type))
         self.__validate_trial_data(trial_data)
         # Check to update data_names so we can find their associated list of
-        # trials quickly later (e.g. in get_data)
+        # trials quickly later (e.g. in get_data_array)
         new_names = set()
         for t_ind, t in enumerate(trial_data):
             # Re-assign timeseries data
