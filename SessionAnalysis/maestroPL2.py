@@ -287,7 +287,11 @@ def remove_trials_less_than_event(maestro_PL2_data, event_number):
 def read_pl2_strobes(pl2_reader):
 
     PL2_strobe_data = pl2_reader.load_channel('strobed')
-    strobe_nums = PL2_strobe_data['strobed'] - 32768
+    # This is for 32 bit adjustment but should be read in 16 bit now but still check
+    if np.all(PL2_strobe_data['strobed'] >= 32768):
+        strobe_nums = PL2_strobe_data['strobed'] - 32768
+    else:
+        strobe_nums = PL2_strobe_data['strobed']
 
     # This function works on the assumption that the following values of Maestro strobes
     # sent to Plexon indicate: the file was saved, trial started, trial ended
@@ -334,9 +338,9 @@ def read_pl2_strobes(pl2_reader):
     DIO pulses from Maestro detected by Plexon and saves their times in an array
     matched with the channel they were detected on.  This assumes that Maestro outputs
     XS2 on Plexon event channel 02, and Maestro digital out pulse 01 is on Plexon
-    channel 04, 02 is channel 05, and so on, i.e. maestro_pl2_chan_map = 3. """
-def assign_trial_events(maestro_PL2_data, pl2_reader):
-    maestro_pl2_chan_map = 3
+    channel 04, 02 is channel 05, and so on, i.e. maestro_pl2_chan_offset = 3. """
+def assign_trial_events(maestro_data, pl2_reader, maestro_pl2_chan_offset=3, max_pl2_event_num=6):
+
     trial_strobe_info = read_pl2_strobes(pl2_reader)
 
     # Read in all the event channels that have data and concatenate their channel number and event times
@@ -350,21 +354,21 @@ def assign_trial_events(maestro_PL2_data, pl2_reader):
                                                                               float(event_key[3:]) * np.ones_like(event_data['timestamps'])], axis=0)), axis=1)
 
     # Sort the array of event channel numbers and event times by timestamps and set initial index to 0
-    pl2_events_times = pl2_events_times[:, np.argsort(pl2_events_times[0])]
+    pl2_events_times = pl2_events_times[:, np.argsort(pl2_events_times[0, :])]
     pl2_event_index = 0
     remove_ind = []
     for trial in range(0, len(trial_strobe_info)):
         # Check if Plexon strobe and Maestro file names match
-        if trial_strobe_info[trial]['trial_file'] in maestro_PL2_data[trial]['filename']:
+        if trial_strobe_info[trial]['trial_file'] in maestro_data[trial]['filename']:
 
             # First make numpy array of all event numbers and their times for this trial
             # and sort it according to time of events
             maestro_events_times = [[], []]
-            for p in range(0, len(maestro_PL2_data[trial]['maestro_events'])):
-                maestro_events_times[0].extend(maestro_PL2_data[trial]['maestro_events'][p])
-                maestro_events_times[1].extend([p + 1] * len(maestro_PL2_data[trial]['maestro_events'][p]))
+            for p in range(0, len(maestro_data[trial]['events'])):
+                maestro_events_times[0].extend(maestro_data[trial]['events'][p])
+                maestro_events_times[1].extend([p + 1] * len(maestro_data[trial]['events'][p]))
             maestro_events_times = np.array(maestro_events_times)
-            maestro_events_times = maestro_events_times[:, np.argsort(maestro_events_times[0])]
+            maestro_events_times = maestro_events_times[:, np.argsort(maestro_events_times[0, :])]
 
             # Now build a matching event array with Plexon events.  Include 2 extra event
             # slots for the start and stop XS2 events, which are not in Maestro file.  This
@@ -378,15 +382,26 @@ def assign_trial_events(maestro_PL2_data, pl2_reader):
             pl2_trial_events[:, -1] = pl2_events_times[:, move_index_next(pl2_events_times[1, :], 2, pl2_event_index, '=')]
 
             # Save start and stop for output
-            maestro_PL2_data[trial]['plexon_start_stop'] = (pl2_trial_events[0, 0], pl2_trial_events[0, -1])
+            maestro_data[trial]['plexon_start_stop'] = (pl2_trial_events[0, 0], pl2_trial_events[0, -1])
 
             # Again, only include Plexon events that were observed in Maestro by looking
             # through all Maestro events and finding their counterparts in Plexon
-            # according to the mapping defined in maestro_pl2_chan_map
-            maestro_PL2_data[trial]['plexon_events'] = [[] for x in range(0, len(maestro_PL2_data[trial]['maestro_events']))]
-            for event_ind, event_num in enumerate(maestro_events_times[1]):
-                event_num = event_num.astype('int')
-                pl2_event_index = move_index_next(pl2_events_times[1, :], event_num + maestro_pl2_chan_map, pl2_event_index, '=')
+            # according to the mapping defined in maestro_pl2_chan_offset
+            maestro_data[trial]['plexon_events'] = [[] for x in range(0, len(maestro_data[trial]['events']))]
+            for event_ind, event_num in enumerate(maestro_events_times[1, :]):
+                event_num = np.int64(event_num)
+                if (event_num + maestro_pl2_chan_offset) > max_pl2_event_num:
+                    continue
+                new_pl2_event_index = move_index_next(pl2_events_times[1, :], event_num + maestro_pl2_chan_offset, pl2_event_index, '=')
+                # Checkt that we found a usable next index for matching plexon event
+                if new_pl2_event_index is None:
+                    print("Cannot find matching event {0} for trial {1}, the event doesn't exist in remaining plexon events!".format(event_num + maestro_pl2_chan_offset, trial))
+                    continue
+                if pl2_events_times[0, new_pl2_event_index] > maestro_data[trial]['plexon_start_stop'][1]:
+                    # Next matching event is BEYOND THE CURRENT TRIAL!
+                    print("Cannot find matching event {0} for trial {1}, next match is beyond current trial!".format(event_num + maestro_pl2_chan_offset, trial))
+                    continue
+                pl2_event_index = new_pl2_event_index
                 pl2_trial_events[:, event_ind + 1] = pl2_events_times[:, pl2_event_index]
 
                 # Compare Maestro and Plexon inter-event times
@@ -394,33 +409,35 @@ def assign_trial_events(maestro_PL2_data, pl2_reader):
                     aligment_difference = abs((maestro_events_times[0, event_ind] - maestro_events_times[0, event_ind-1]) -
                                               (pl2_trial_events[0, event_ind + 1] - pl2_trial_events[0, event_ind]))
                     if aligment_difference > 0.1:
+                        print(maestro_events_times[0, event_ind])
+                        print(pl2_trial_events[0, 0] - pl2_trial_events[0, event_ind])
                         remove_ind.append(trial)
                         break
                         # raise ValueError("Plexon and Maestro inter-event intervals do not match within 0.1 ms for trial {} and event number {}.".format(trial, event_num))
 
-                # Re-stack plexon events for output by lists of channel number so they match Maestro data in maestro_PL2_data[trial]['events']
+                # Re-stack plexon events for output by lists of channel number so they match Maestro data in maestro_data[trial]['events']
                 if event_num > 0:
-                    maestro_PL2_data[trial]['plexon_events'][event_num - 1].append(pl2_events_times[0, pl2_event_index])
+                    maestro_data[trial]['plexon_events'][event_num - 1].append(pl2_events_times[0, pl2_event_index])
                 else:
                     # This is probably an error
                     print('FOUND A START STOP CODE IN TRIAL EVENTS!? PROBABLY AN ERROR')
 
         else:
-            # This is an error that I am not sure what to do with
-            print("Plexon filename {} and Maestro filename {} don't match!".format(trial_strobe_info[trial]['trial_file'], maestro_PL2_data[trial]['filename']))
+            # This is an error that I am not sure what to do with, unless file names have been changed for some reason
+            print("Plexon filename {} and Maestro filename {} don't match!".format(trial_strobe_info[trial]['trial_file'], maestro_data[trial]['filename']))
 
-    if len(maestro_PL2_data) != len(trial_strobe_info):
+    if len(maestro_data) != len(trial_strobe_info):
         # At this point it already went through all trial_strobe_info successfully, so assume any extra trials were dropped
-        print("The {} extra trials on the end of maestro_PL2_data than Plexon strobes were removed by maestroPL2.assign_trial_events.".format(len(maestro_PL2_data) - len(trial_strobe_info)))
-        del maestro_PL2_data[len(trial_strobe_info):]
+        print("The {} extra trials on the end of maestro_data than Plexon strobes were removed by maestroPL2.assign_trial_events.".format(len(maestro_data) - len(trial_strobe_info)))
+        del maestro_data[len(trial_strobe_info):]
 
     if len(remove_ind) > 0:
         remove_ind.reverse()
         for index in remove_ind:
             print("Trial {} did not have matching Plexon and Maestro events and was removed".format(index))
-            del maestro_PL2_data[index]
+            del maestro_data[index]
 
-    return maestro_PL2_data
+    return maestro_data
 
 
 def assign_trial_spikes(maestro_PL2_data, spike_times, spike_name=None):
