@@ -336,10 +336,11 @@ def read_pl2_strobes(pl2_reader):
 
 """ Based on the strobe data read in from read_pl2_strobes, this function finds the
     DIO pulses from Maestro detected by Plexon and saves their times in an array
-    matched with the channel they were detected on.  This assumes that Maestro outputs
+    matched with the channel they were detected on.  e.g. Maestro outputs
     XS2 on Plexon event channel 02, and Maestro digital out pulse 01 is on Plexon
     channel 04, 02 is channel 05, and so on, i.e. maestro_pl2_chan_offset = 3. """
-def assign_trial_events(maestro_data, pl2_reader, maestro_pl2_chan_offset=3, max_pl2_event_num=6):
+def assign_trial_events(maestro_data, pl2_reader, maestro_pl2_chan_offset=3,
+                        xs2_evt=2, max_pl2_event_num=9):
 
     trial_strobe_info = read_pl2_strobes(pl2_reader)
 
@@ -377,12 +378,18 @@ def assign_trial_events(maestro_data, pl2_reader, maestro_pl2_chan_offset=3, max
 
             # Strobed start precedes everything else so start here and find XS2 start and stop times
             pl2_event_index = move_index_next(pl2_events_times[0, :], trial_strobe_info[trial]['trial_start_time'], pl2_event_index, '>')
-            pl2_event_index = move_index_next(pl2_events_times[1, :], 2, pl2_event_index - 1, '=')
+            pl2_event_index = move_index_next(pl2_events_times[1, :], xs2_evt, pl2_event_index - 1, '=')
             pl2_trial_events[:, 0] = pl2_events_times[:, pl2_event_index]
-            pl2_trial_events[:, -1] = pl2_events_times[:, move_index_next(pl2_events_times[1, :], 2, pl2_event_index, '=')]
+            pl2_trial_events[:, -1] = pl2_events_times[:, move_index_next(pl2_events_times[1, :], xs2_evt, pl2_event_index, '=')]
 
             # Save start and stop for output
             maestro_data[trial]['plexon_start_stop'] = (pl2_trial_events[0, 0], pl2_trial_events[0, -1])
+
+            # Check trial duration according to plexon XS2 and Maestro file
+            pl2_duration = maestro_data[trial]['plexon_start_stop'][1] - maestro_data[trial]['plexon_start_stop'][0]
+            maestro_duration = maestro_data[trial]['header']['_num_saved_scans']
+            if np.abs(pl2_duration - maestro_duration) > 2.0:
+                print("WARNING: difference between recorded pl2 trial duration {0} and maestro trial duration {1} is over 2 ms. This could mean XS2 inital pulse was delayed and unreliable.".format(pl2_duration, maestro_duration))
 
             # Again, only include Plexon events that were observed in Maestro by looking
             # through all Maestro events and finding their counterparts in Plexon
@@ -406,12 +413,12 @@ def assign_trial_events(maestro_data, pl2_reader, maestro_pl2_chan_offset=3, max
 
                 # Compare Maestro and Plexon inter-event times
                 if event_ind > 0:
-                    aligment_difference = abs((maestro_events_times[0, event_ind] - maestro_events_times[0, event_ind-1]) -
+                    # Need to convert Maestro times to ms
+                    aligment_difference = abs(1000*(maestro_events_times[0, event_ind] - maestro_events_times[0, event_ind-1]) -
                                               (pl2_trial_events[0, event_ind + 1] - pl2_trial_events[0, event_ind]))
                     if aligment_difference > 0.1:
-                        print(maestro_events_times[0, event_ind])
-                        print(pl2_trial_events[0, 0] - pl2_trial_events[0, event_ind])
                         remove_ind.append(trial)
+                        print("Plexon and Maestro inter-event intervals do not match within 0.1 ms for trial {} and event number {} and will be removed.".format(trial, event_num))
                         break
                         # raise ValueError("Plexon and Maestro inter-event intervals do not match within 0.1 ms for trial {} and event number {}.".format(trial, event_num))
 
