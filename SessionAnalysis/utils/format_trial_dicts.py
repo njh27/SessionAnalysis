@@ -1,4 +1,4 @@
-from SessionAnalysis.trial import ApparatusTrial, BehavioralTrial
+from SessionAnalysis.trial import ApparatusTrial, BehavioralTrial, NeuronTrial
 
 
 
@@ -220,6 +220,30 @@ def maestro_to_behavior_trial(maestro_data, dt_data, start_data=0,
         tdict['data'] = {}
         for key in keep_keys:
             tdict['data'][key] = t[key]
+        trial_list.append(BehavioralTrial(tdict, dt_data, start_data, data_name))
+
+    return trial_list
+
+
+def maestro_to_neuron_trial(maestro_data, neurons, dt_data, start_data=0,
+                                data_name="spikes"):
+    """ Join spike data from neurons to each trial in maestro_data and convert
+    to an output list of NeuronTrial objects. """
+
+    for n_ind, n in neurons:
+        # Need a name for this neuron
+        tdict = {}
+
+    trial_list = []
+    for t in maestro_data:
+        tdict = {}
+        tdict['name'] = t['header']['name']
+        tdict['events'] = t['events']
+        tdict['data'] = {}
+
+
+
+
         trial_list.append(BehavioralTrial(tdict, dt_data, start_data, data_name))
 
     return trial_list
