@@ -1,4 +1,5 @@
 from SessionAnalysis.trial import ApparatusTrial, BehavioralTrial, NeuronTrial
+from SessionAnalysis.utils.general import Indexer
 
 
 
@@ -226,24 +227,62 @@ def maestro_to_behavior_trial(maestro_data, dt_data, start_data=0,
 
 
 def maestro_to_neuron_trial(maestro_data, neurons, dt_data, start_data=0,
-                                data_name="spikes"):
+                            default_name="n_", use_class_names=True,
+                            spike_time_cushion=100):
     """ Join spike data from neurons to each trial in maestro_data and convert
     to an output list of NeuronTrial objects. """
 
-    for n_ind, n in neurons:
+    neuron_meta = {}
+    default_nums = {}
+    default_name = "n_"
+    for n_ind, n in enumerate(neurons):
+        neuron_meta[n_ind] = {}
         # Need a name for this neuron
-        tdict = {}
+        if use_class_names:
+            try:
+                use_name = neurons[n_ind]['class']
+                use_class = use_name
+            except KeyError:
+                # Neuron does not have a class field so use default
+                use_name = default_name
+                use_class = None
+        else:
+            use_name = default_name
+        if use_name in default_nums:
+            default_nums[use_name] += 1
+        else:
+            default_nums[use_name] = 0
+        neuron_meta[n_ind]['name'] = use_name + "{:02d}".format(default_nums[use_name])
+        neuron_meta[n_ind]['class'] = use_class
+        neuron_meta[n_ind]['indexer'] = sa.utils.general.Indexer(n['spike_indices'], 0)
 
+    # Convert spike time cushion from ms to samples
+    spike_time_cushion *= (neurons[0]['sampling_rate__'] / 1000)
     trial_list = []
     for t in maestro_data:
         tdict = {}
         tdict['name'] = t['header']['name']
-        tdict['events'] = t['events']
+        tdict['events'] = t['plexon_events']
         tdict['data'] = {}
+        t_start_sample = t['plexon_start_stop'][0] * (neurons[0]['sampling_rate__'] / 1000) - spike_time_cushion
+        t_stop_sample = t['plexon_start_stop'][1] * (neurons[0]['sampling_rate__'] / 1000) + spike_time_cushion
+        for n_ind, n in enumerate(neurons):
+            # Initate the neuron dictionary for this trial and this neuron
+            tdict['data'][neuron_meta[n_ind]['name']] = {}
+            tdict['data'][neuron_meta[n_ind]['name']]['class'] = neuron_meta[n_ind]['class']
+            spikes_start = neuron_meta[n_ind]['indexer'].move_index_next(t_start_sample, ">=")
+            # Use strictly greater than so slicing includes anything equal
+            spikes_stop = neuron_meta[n_ind]['indexer'].move_index_next(t_stop_sample, ">")
+            # Get spikes and convert to ms
+            tdict['data'][neuron_meta[n_ind]['name']]['spikes'] = np.copy(np.float64(n['spike_indices'][spikes_start:spikes_stop]))
+            # Adjust indices to trial window starting at 0
+            tdict['data'][neuron_meta[n_ind]['name']]['spikes'] -= int(t_start_sample + spike_time_cushion)
+            # Convert to ms within trial
+            tdict['data'][neuron_meta[n_ind]['name']]['spikes'] *= (1000 / n['sampling_rate__'])
 
 
 
 
-        trial_list.append(BehavioralTrial(tdict, dt_data, start_data, data_name))
+        trial_list.append(NeuronTrial(tdict, dt_data, start_data, data_name))
 
     return trial_list

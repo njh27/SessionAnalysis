@@ -537,10 +537,14 @@ class NeuronTrial(Trial):
         name : str
             Name of the given trial.
         data : dict
-            Dictionary containing time dependent data such as stimulus and/or
-            behavioral movement data. Each key of the dictionary specifies a
-            timeseries. The key names for this dictionary can be used later to
-            reference and extract their corresponding data.
+            Dictionary containing time dependent data for the neurons associated
+            with this trial. Each key specifies a neuron dictionary. The neuron
+            dictionary can specify the neuron 'class' for selecting data from
+            neurons of a specific type/class. It must contain at least the key
+            'spikes' which contains a numpy array of spike times with respect
+            to the trial time and associated event times. From this other
+            timeseries can be created from the spike train and also saved to
+            the neuron dictionaries in 'data' for use in subsequent analyses.
         events : dict
             Dictionary where each key names an event. Each event is a time
             within the session on which the timeseries data (e.g. neural and

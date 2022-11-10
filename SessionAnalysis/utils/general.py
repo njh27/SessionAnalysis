@@ -1,6 +1,126 @@
 import numpy as np
+import operator
 from scipy.optimize import leastsq
 
+
+
+class Indexer(object):
+    """ Class that allows you to move an index along points in a 1D vector
+    of numpy or list values according to a specified relationship between
+    the values in the array so you can track values as needed without having to
+    search an entire array each time, but rather start and stop at points of
+    interest.
+    """
+    def __init__(self, search_array, current_index=0):
+        self.search_array = search_array
+        self.search_len = len(search_array)
+        if self.search_len < 1:
+            # Only one item, cannot be a next index
+            raise ValueError("Cannot perform index searches on less than 1 value")
+        self.set_current_index(current_index)
+        # Make dictionary to find functions for input relation operator
+        self.ops = {'>': operator.gt,
+               '<': operator.lt,
+               '>=': operator.ge,
+               '<=': operator.le,
+               '=': operator.eq}
+
+    def set_current_index(self, index):
+        index = int(index)
+        if np.abs(index) >= self.search_len:
+            raise ValueError("Current index is out of bounds of search array of len {0}.".format(self.search_len))
+        self.current_index = index
+        # Adjust negative index to positive
+        if self.current_index < 0:
+            self.current_index = self.current_index + self.search_len
+
+    """ This is to find an index in a numpy array or Python list search item to
+        index the NEXT element in the array that holds the input "relation" with
+        the input "value".  It will NOT output the value of current_index even if
+        it matches value!  This search is done starting at "current_index" and
+        outputs an absolute index adjusted for this starting point. The search
+        will not wrap around from the end to the beginning, but instead will
+        terminate and return None if the end is reached without finding the
+        correct value. If a negative current_index is input, the function will
+        attempt it to a positive index and output a positive index."""
+    def find_index_next(self, value, relation='='):
+        next_index = None
+        # Check for index of matching value in search_item
+        for index, vals in zip(range(self.current_index + 1, self.search_len, 1), self.search_array[self.current_index + 1:]):
+            try:
+                if self.ops[relation](vals, value):
+                    next_index = index
+                    break
+            except KeyError:
+                raise ValueError("Input 'relation' must be '>', '<', '>=', '<=' or '=', but {0} was given.".format(relation))
+        return(next_index)
+
+    """ This is to move an index in a numpy array or Python list search item to
+        index the PREVIOUS element in the array that holds the input "relation" with
+        the input "value".  It will NOT output the value of current_index even if
+        it matches value!  This search is done starting at "current_index" and
+        outputs an absolute index adjusted for this starting point.  The search
+        will not wrap around from the beginning to the end, but instead will
+        terminate and return None if the beginning is reached without finding the
+        correct value. If a negative current_index is input, the function will
+        attempt it to a positive index and output a positive index."""
+    def find_index_previous(self, value, relation='='):
+        previous_index = None
+        # Check for index of matching value in search_item
+        for index, vals in zip(range(self.current_index - 1, -1, -1), self.search_array[self.current_index - 1::-1]):
+            try:
+                if self.ops[relation](vals, value):
+                    previous_index = index
+                    break
+            except KeyError:
+                raise ValueError("Input 'relation' must be '>', '<', '>=', '<=' or '=', but {0} was given.".format(relation))
+        return(previous_index)
+
+    """ This is to find the index of first occurence of some value in a numpy array
+        or python list that satisfies the input relation with the input value.
+        Returns None if value isn't found, else returns it's index. """
+    def find_first_value(self, value, relation='='):
+        index_out = None
+        # Check if search_array is iterable, and if not assume it is scalar and check equality
+        try:
+            for index, vals in enumerate(search_array):
+                try:
+                    if self.ops[relation](vals, value):
+                        index_out = index
+                        break
+                except KeyError:
+                    raise ValueError("Input 'relation' must be '>', '<', '>=', '<=' or '=', but {0} was given.".format(relation))
+        except TypeError:
+            try:
+                if self.ops[relation](search_array, value):
+                    index_out = 0
+            except KeyError:
+                raise ValueError("Input 'relation' must be '>', '<', '>=', '<=' or '=', but {0} was given.".format(relation))
+        return(index_out)
+
+    """ This is to move the current index to the index returned by
+    find_next_index. Does nothing if None is found."""
+    def move_index_next(self, value, relation='='):
+        next_index = self.find_index_next(value, relation)
+        if next_index is not None:
+            self.set_current_index(next_index)
+        return self.current_index
+
+    """ This is to move the current index to the index returned by
+    find_prevous_index. Does nothing if None is found."""
+    def move_index_previous(self, value, relation='='):
+        previous_index = self.find_index_previous(value, relation)
+        if previous_index is not None:
+            self.set_current_index(previous_index)
+        return self.current_index
+
+    """ This is to move the current index to the index returned by
+    find_first_value. Does nothing if None is found."""
+    def move_index_first_value(self, value, relation='='):
+        index_out = self.find_first_value(value, relation)
+        if index_out is not None:
+            self.set_current_index(index_out)
+        return self.current_index
 
 
 def zero_phase_kernel(x, x_center):
