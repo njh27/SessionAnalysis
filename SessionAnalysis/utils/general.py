@@ -91,7 +91,7 @@ class Indexer(object):
         index_out = None
         # Check if search_array is iterable, and if not assume it is scalar and check equality
         try:
-            for index, vals in enumerate(search_array):
+            for index, vals in enumerate(self.search_array):
                 try:
                     if self.ops[relation](vals, value):
                         index_out = index
@@ -100,7 +100,7 @@ class Indexer(object):
                     raise ValueError("Input 'relation' must be '>', '<', '>=', '<=' or '=', but {0} was given.".format(relation))
         except TypeError:
             try:
-                if self.ops[relation](search_array, value):
+                if self.ops[relation](self.search_array, value):
                     index_out = 0
             except KeyError:
                 raise ValueError("Input 'relation' must be '>', '<', '>=', '<=' or '=', but {0} was given.".format(relation))
