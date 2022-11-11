@@ -9,9 +9,10 @@ class Indexer(object):
     of numpy or list values according to a specified relationship between
     the values in the array so you can track values as needed without having to
     search an entire array each time, but rather start and stop at points of
-    interest.
+    interest. Current index of None results in searching from scratch and finding
+    the absolute first value satisfying criteria.
     """
-    def __init__(self, search_array, current_index=0):
+    def __init__(self, search_array, current_index=None):
         self.search_array = search_array
         self.search_len = len(search_array)
         if self.search_len < 1:
@@ -26,6 +27,9 @@ class Indexer(object):
                '=': operator.eq}
 
     def set_current_index(self, index):
+        if index is None:
+            self.current_index = None
+            return
         index = int(index)
         if np.abs(index) >= self.search_len:
             raise ValueError("Current index is out of bounds of search array of len {0}.".format(self.search_len))
@@ -44,6 +48,8 @@ class Indexer(object):
         correct value. If a negative current_index is input, the function will
         attempt it to a positive index and output a positive index."""
     def find_index_next(self, value, relation='='):
+        if self.current_index is None:
+            return self.find_first_value(value, relation)
         next_index = None
         # Check for index of matching value in search_item
         for index, vals in zip(range(self.current_index + 1, self.search_len, 1), self.search_array[self.current_index + 1:]):
@@ -65,6 +71,8 @@ class Indexer(object):
         correct value. If a negative current_index is input, the function will
         attempt it to a positive index and output a positive index."""
     def find_index_previous(self, value, relation='='):
+        if self.current_index is None:
+            return self.find_first_value(value, relation)
         previous_index = None
         # Check for index of matching value in search_item
         for index, vals in zip(range(self.current_index - 1, -1, -1), self.search_array[self.current_index - 1::-1]):
@@ -102,25 +110,22 @@ class Indexer(object):
     find_next_index. Does nothing if None is found."""
     def move_index_next(self, value, relation='='):
         next_index = self.find_index_next(value, relation)
-        if next_index is not None:
-            self.set_current_index(next_index)
-        return self.current_index
+        self.set_current_index(next_index)
+        return next_index
 
     """ This is to move the current index to the index returned by
     find_prevous_index. Does nothing if None is found."""
     def move_index_previous(self, value, relation='='):
         previous_index = self.find_index_previous(value, relation)
-        if previous_index is not None:
-            self.set_current_index(previous_index)
-        return self.current_index
+        self.set_current_index(previous_index)
+        return previous_index
 
     """ This is to move the current index to the index returned by
     find_first_value. Does nothing if None is found."""
     def move_index_first_value(self, value, relation='='):
         index_out = self.find_first_value(value, relation)
-        if index_out is not None:
-            self.set_current_index(index_out)
-        return self.current_index
+        self.set_current_index(index_out)
+        return index_out
 
 
 def zero_phase_kernel(x, x_center):

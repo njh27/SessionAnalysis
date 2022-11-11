@@ -565,14 +565,13 @@ class NeuronTrial(Trial):
     object of NeuronTrial class
     """
 
-    def __init__(self, trial_dict, dt_data, start_data=0, data_name="spikes", classif=None):
+    def __init__(self, trial_dict, dt_data, start_data=0, data_name="neurons"):
         """
         """
         if type(data_name) != str:
             raise ValueError("NeuronTrial object must have a string for data_name.")
         self.__data_alias__ = data_name
-        self.classif = classif
-        Trial.__init__(self, trial_dict)
+        Trial.__init__(self, trial_dict, dt_data, start_data)
 
     def __getitem__(self, key):
         # Use data alias as shortcut to indexing data
