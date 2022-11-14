@@ -137,7 +137,8 @@ def format_maestro_events(maestro_data, event_names_by_trial=None,
             event_names = event_names_by_trial[t['header']['name']]
         except KeyError:
             event_names = None
-
+        # Preserve original event format for neuron alignment
+        t['og_events'] = t['events']
         t['events'] = events_list_to_dict(t['events'], event_names,
                         missing_event, convert_to_ms)
 
@@ -227,7 +228,8 @@ def maestro_to_behavior_trial(maestro_data, dt_data, start_data=0,
 
 
 def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
-                            default_name="n_", use_class_names=True):
+                            default_name="n_", use_class_names=True,
+                            data_name='neurons'):
     """ Join spike data from neurons to each trial in maestro_data and convert
     to an output list of NeuronTrial objects. """
 
@@ -240,7 +242,11 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         if use_class_names:
             try:
                 use_name = neurons[n_ind]['class']
-                use_class = use_name
+                if use_name is None:
+                    # Skip to below
+                    raise KeyError()
+                else:
+                    use_class = use_name
             except KeyError:
                 # Neuron does not have a class field so use default
                 use_name = default_name
@@ -253,7 +259,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             default_nums[use_name] = 0
         neuron_meta[n_ind]['name'] = use_name + "{:02d}".format(default_nums[use_name])
         neuron_meta[n_ind]['class'] = use_class
-        neuron_meta[n_ind]['indexer'] = sa.utils.general.Indexer(n['spike_indices'])
+        neuron_meta[n_ind]['indexer'] = Indexer(n['spike_indices'])
 
     if dt_data is None:
         # Use sampling rate in ms as dt_data
@@ -261,25 +267,28 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
     # Convert spike time cushion from ms to samples
     trial_list = []
     for t in maestro_data:
+        if type(t['events']) != dict:
+            raise ValueError("Input trial_dict key 'events' for maestro_data must be a dictionary that maps event name to the time of the event.")
         tdict = {}
         tdict['name'] = t['header']['name']
-        tdict['events'] = t['plexon_events']
+        tdict['events'] = t['events']
         tdict['meta_data'] = {}
         tdict['data'] = {}
         # Get trial start/stop in units of samples to match the neuron spikes
         start_sample = int(np.floor(t['plexon_start_stop'][0] * (neurons[0]['sampling_rate__'] / 1000)))
         stop_sample = int(np.ceil(t['plexon_start_stop'][1] * (neurons[0]['sampling_rate__'] / 1000)))
-        dt_duration = int(np.ceil((maestro_data[1100]['plexon_start_stop'][1] - maestro_data[1100]['plexon_start_stop'][0]) / dt_data))
+        # Need to add 1 to include t=1 and final timepoint
+        dt_duration = int(np.ceil((t['plexon_start_stop'][1] - t['plexon_start_stop'][0]+1) / dt_data))
         for n_ind, n in enumerate(neurons):
             # Initate the neuron dictionary for this trial and this neuron
             tdict['meta_data'][neuron_meta[n_ind]['name']] = {}
             tdict['meta_data'][neuron_meta[n_ind]['name']]['class'] = neuron_meta[n_ind]['class']
-
             if n['spike_indices'][0] > stop_sample:
                 # This neuron has no spikes within this trial window
+                tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = None
                 continue
 
-            ind_spikes_stop = neuron_meta[n_ind]['indexer'].move_index_next(stop_sample, ">=")
+            ind_spikes_stop = neuron_meta[n_ind]['indexer'].move_index_next(stop_sample, ">")
             if ind_spikes_stop is None:
                 # Should be the end of the spikes so reset index to find previous
                 neuron_meta[n_ind]['indexer'].set_current_index(-1)
@@ -293,13 +302,13 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
 
             if tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'].size == 0:
                 # No spikes for this trial
+                tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = None
                 continue
 
             # Adjust indices to trial window starting at 0
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] -= start_sample
             # Convert to ms within trial
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] *= (1000 / n['sampling_rate__'])
-
             # Need to convert spikes to a timeseries for output in 'data'
             tdict['data'][neuron_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
             for spk in tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes']:
