@@ -481,6 +481,46 @@ class Session(object):
 
         return None
 
+    def add_neuron_trials(self, trial_data, meta_dict_name='meta_data'):
+        """ Adds a new list of trial dictionaries that will be conjoined with
+        the existing list initialized via __init__. New trials are assigned the
+        same timeseries as the __main trials. Reserved specifically for neurons
+        with data_type "neurons" for tracking class ID of neurons and maybe
+        other things like being absent on particular trials searching a neuron
+        metadata. """
+        data_type = neurons
+        if data_type in self._trial_lists:
+            raise ValueError("Session already has data type {0}.".format(data_type))
+        # Store reference to neuron meta data dictionaries for each trial
+        self.meta_dict_name = meta_dict_name
+        self.__validate_trial_data(trial_data)
+        # Check to update data_names so we can find their associated list of
+        # trials quickly later (e.g. in get_data_array)
+        new_names = set()
+        for t_ind, t in enumerate(trial_data):
+            # Re-assign timeseries data
+            t._timeseries = self._session_trial_data[t_ind]['timeseries']
+            for k in t['data'].keys():
+                new_names.add(k)
+            # Check for metadata dictionary
+            try:
+                tm_dict = t[self.meta_dict_name]
+            except KeyError:
+                raise ValueError("Could not find meta data dictionary {0} for trial {1}.".format(self.meta_dict_name, t_ind))
+            if not isinstance(tm_dict, dict):
+                raise ValueError("Meta data for trial {0} is not formatted as a dictionary type.".format(t_ind))
+        for nn in new_names:
+            if nn in self.__series_names.keys():
+                raise ValueError("Session already has data name {0}.".format(nn))
+
+        for nn in new_names:
+            self.__series_names[nn] = data_type
+        # Save dictionary reference to this trial set and conjoin to __main
+        self._trial_lists[data_type] = ConjoinedList(trial_data)
+        self._trial_lists['__main'].add_child(self._trial_lists[data_type])
+
+        return None
+
     def align_trial_data(self, alignment_event, alignment_offset=0.,
                          blocks=None, trial_sets=None):
         """ Aligns the trial timeseries to the event specified plus the
