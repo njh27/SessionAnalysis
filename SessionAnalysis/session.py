@@ -948,10 +948,6 @@ class Session(object):
     def alias_trial_name(self, trials, old_name, new_name):
         pass
 
-    def add_neuron(self, Neuron):
-        """. """
-        Neuron.join_session(self)
-
 
     ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
     def get_trial_names(self):
