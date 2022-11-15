@@ -283,10 +283,11 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         stop_sample = int(np.ceil(t['plexon_start_stop'][1] * samples_per_ms)) # convert ms to samples
         # Need to keep the trial duration matched to Maestro duration, so just
         # find trial start assuming Maestro is true since pl2 has higher sampling
-        start_sample = stop_sample - (t['header']['_num_saved_scans'] * samples_per_ms) # convert ms to samples
+        # Need to subtract one so it includes t=0
+        start_sample = stop_sample - ((t['header']['_num_saved_scans'] - 1) * samples_per_ms) # convert ms to samples
         # Need to make dt_duration match maestro duration in whole ms
         dt_duration = int( ((stop_sample - start_sample) / samples_per_ms) / dt_data)
-        if dt_duration * dt_data != t['header']['_num_saved_scans']:
+        if dt_duration * dt_data != (t['header']['_num_saved_scans']-1):
             raise ValueError("Plexon data duration conversion to ms {0} does not match maestro scans {1}.".format(dt_duration * dt_data, t['header']['_num_saved_scans']))
         for n_ind, n in enumerate(neurons):
             # Initate the neuron dictionary for this trial and this neuron
