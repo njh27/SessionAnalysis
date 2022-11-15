@@ -304,7 +304,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             # Get spikes only within the trial window
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = np.copy(np.float64(n['spike_indices'][ind_spikes_start:ind_spikes_stop]))
             t_spikes_sel = np.logical_and(tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] >= start_sample,
-                                          tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] <= stop_sample)
+                                          tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] < stop_sample)
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'][t_spikes_sel]
 
             if tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'].size == 0:
