@@ -488,7 +488,7 @@ class Session(object):
         with data_type "neurons" for tracking class ID of neurons and maybe
         other things like being absent on particular trials searching a neuron
         metadata. """
-        data_type = neurons
+        data_type = "neurons"
         if data_type in self._trial_lists:
             raise ValueError("Session already has data type {0}.".format(data_type))
         # Store reference to neuron meta data dictionaries for each trial
