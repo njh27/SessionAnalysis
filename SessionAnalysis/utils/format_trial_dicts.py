@@ -284,10 +284,10 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         # Need to keep the trial duration matched to Maestro duration, so just
         # find trial start assuming Maestro is true since pl2 has higher sampling
         # Need to subtract one so it includes t=0
-        start_sample = stop_sample - ((t['header']['_num_saved_scans'] - 1) * samples_per_ms) # convert ms to samples
+        start_sample = stop_sample - ((t['header']['_num_saved_scans']) * samples_per_ms) # convert ms to samples
         # Need to make dt_duration match maestro duration in whole ms
         dt_duration = int( ((stop_sample - start_sample) / samples_per_ms) / dt_data)
-        if dt_duration * dt_data != (t['header']['_num_saved_scans']-1):
+        if dt_duration * dt_data != (t['header']['_num_saved_scans']):
             raise ValueError("Plexon data duration conversion to ms {0} does not match maestro scans {1}.".format(dt_duration * dt_data, t['header']['_num_saved_scans']))
         for n_ind, n in enumerate(neurons):
             # Initate the neuron dictionary for this trial and this neuron
@@ -303,6 +303,10 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                 # Should be the end of the spikes so reset index to find previous
                 neuron_meta[n_ind]['indexer'].set_current_index(-1)
             ind_spikes_start = neuron_meta[n_ind]['indexer'].move_index_previous(start_sample, "<")
+            if ind_spikes_start is None:
+                # Should be the end of the spikes so reset index to find previous
+                neuron_meta[n_ind]['indexer'].set_current_index(0)
+                ind_spikes_start = 0
 
             # Get spikes only within the trial window
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = np.copy(np.float64(n['spike_indices'][ind_spikes_start:ind_spikes_stop]))
@@ -321,9 +325,17 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] *= (1000 / n['sampling_rate__'])
             # Need to convert spikes to a timeseries for output in 'data'
             tdict['data'][neuron_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
+            spk_ind = 0
             for spk in tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes']:
-                spk_bin = int(np.floor(spk / dt_data + 0.5))
+                spk_bin = int(np.floor((spk / dt_data) + 0.5))
+                if spk_bin < 0:
+                    # Shouldn't really happen but maybe technically could since plexon and maestro sampling rates/times differ slightly
+                    continue
+                if spk_bin >= dt_duration:
+                    print(spk, spk_bin, spk_ind, dt_duration, t['header']['_num_saved_scans'])
+
                 tdict['data'][neuron_meta[n_ind]['name']][spk_bin] += 1
+                spk_ind += 1
 
         trial_list.append(NeuronTrial(tdict, dt_data, start_data, data_name))
         t_num += 1
