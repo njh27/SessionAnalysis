@@ -267,8 +267,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
     # Convert spike time cushion from ms to samples
     trial_list = []
     for t in maestro_data:
-        if type(t['events']) != dict:
-            raise ValueError("Input trial_dict key 'events' for maestro_data must be a dictionary that maps event name to the time of the event.")
+        # if type(t['events']) != dict:
+        #     raise ValueError("Input trial_dict key 'events' for maestro_data must be a dictionary that maps event name to the time of the event.")
         tdict = {}
         tdict['name'] = t['header']['name']
         tdict['events'] = {}
