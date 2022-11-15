@@ -325,17 +325,9 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] *= (1000 / n['sampling_rate__'])
             # Need to convert spikes to a timeseries for output in 'data'
             tdict['data'][neuron_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
-            spk_ind = 0
             for spk in tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes']:
-                spk_bin = int(np.floor((spk / dt_data) + 0.5))
-                if spk_bin < 0:
-                    # Shouldn't really happen but maybe technically could since plexon and maestro sampling rates/times differ slightly
-                    continue
-                if spk_bin >= dt_duration:
-                    print(spk, spk_bin, spk_ind, dt_duration, t['header']['_num_saved_scans'])
-
+                spk_bin = int(np.floor((spk / dt_data)))
                 tdict['data'][neuron_meta[n_ind]['name']][spk_bin] += 1
-                spk_ind += 1
 
         trial_list.append(NeuronTrial(tdict, dt_data, start_data, data_name))
         t_num += 1
