@@ -1,3 +1,4 @@
+import numpy as np
 from SessionAnalysis.trial import ApparatusTrial, BehavioralTrial, NeuronTrial
 from SessionAnalysis.utils.general import Indexer
 
