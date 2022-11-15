@@ -265,6 +265,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
     if dt_data is None:
         # Use sampling rate in ms as dt_data
         dt_data = 1000 / neurons[0]['sampling_rate__']
+    samples_per_ms = (neurons[0]['sampling_rate__'] / 1000)
     # Convert spike time cushion from ms to samples
     trial_list = []
     for t in maestro_data:
@@ -275,11 +276,16 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         tdict['events'] = {}
         tdict['meta_data'] = {}
         tdict['data'] = {}
-        # Get trial start/stop in units of samples to match the neuron spikes
-        start_sample = int(np.floor(t['plexon_start_stop'][0] * (neurons[0]['sampling_rate__'] / 1000)))
-        stop_sample = int(np.ceil(t['plexon_start_stop'][1] * (neurons[0]['sampling_rate__'] / 1000)))
-        # Need to add 1 to include t=1 and final timepoint
-        dt_duration = int(np.ceil((t['plexon_start_stop'][1] - t['plexon_start_stop'][0]+1) / dt_data))
+        # Get trial stop in units of samples to match the neuron spikes
+        # Base on trial stop since it was more accurate when XS2 was screwey
+        stop_sample = int(np.ceil(t['plexon_start_stop'][1] * samples_per_ms)) # convert ms to samples
+        # Need to keep the trial duration matched to Maestro duration, so just
+        # find trial start assuming Maestro is true since pl2 has higher sampling
+        start_sample = stop_sample - (t['header']['_num_saved_scans'] * samples_per_ms) # convert ms to samples
+        # Need to make dt_duration match maestro duration in whole ms
+        dt_duration = int( ((stop_sample - start_sample) / samples_per_ms) / dt_data)
+        if dt_duration * dt_data != t['header']['_num_saved_scans']:
+            raise ValueError("Plexon data duration conversion to ms {0} does not match maestro scans {1}.".format(dt_duration * dt_data, t['header']['_num_saved_scans']))
         for n_ind, n in enumerate(neurons):
             # Initate the neuron dictionary for this trial and this neuron
             tdict['meta_data'][neuron_meta[n_ind]['name']] = {}
