@@ -523,7 +523,8 @@ class Session(object):
                         elif self.neuron_info[neuron_name]['class'] != t[self.meta_dict_name][neuron_name][meta_info]:
                             raise ValueError("Neuron {0} has mismatched class ID {1} in trial {2} when {3} was expected.".format(neuron_name, t[self.meta_dict_name][neuron_name][meta_info], t_ind, self.neuron_info[neuron_name]['class']))
                         else:
-                            raise RuntimeError("Not sure how we got here on trial {0}.".format(t_ind))
+                            # We found class in global and matches trial so this is good
+                            continue
         for nn in new_names:
             if nn in self.__series_names.keys():
                 raise ValueError("Session already has data name {0}.".format(nn))
