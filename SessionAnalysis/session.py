@@ -545,6 +545,38 @@ class Session(object):
 
         return None
 
+    ##### METHODS THAT ARE SPECIFIC TO SESSIONS WITH NEURONS ADDED #########
+    def gauss_convolved_FR(self, sigma, cutoff_sigma=4, series_name="_gauss"):
+        """ Units of sigma must be given in ms and is converted to samples
+        using the global neuron dt."""
+        try:
+            if not isinstance(self['neurons'], sa.session.ConjoinedList):
+                raise ValueError("Session must have the data_type 'neurons' added in a ConjoinedList to compute firing rates")
+        except KeyError:
+            raise ValueError("Session must have the data_type 'neurons' added in a ConjoinedList to compute firing rates")
+
+        # x_win must be in units of bins
+        sigma = sigma / self.neuron_info['dt']
+        x_win = int(np.around(sigma * cutoff_sigma))
+        xvals = np.arange(-1 * x_win, x_win + 1)
+        kernel = np.exp(-.5 * (xvals / sigma) ** 2)
+        kernel = kernel / np.sum(kernel)
+
+        new_names = set()
+        # Loop over all neurons in each neuron trial
+        for neuron_trial in self['neurons']:
+            # This should make sure to only loop over each neuron name once, rather than all possible data fields
+            for neuron_name in neuron_trial[self.meta_dict_name].keys():
+                if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
+                    continue
+                new_series_name = neuron_name + series_name
+                neuron_trial['data'][new_series_name] = np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
+                new_names.add(new_series_name)
+
+        for nn in new_names:
+            self.__series_names[nn] = "neurons"
+        return None
+
     def align_trial_data(self, alignment_event, alignment_offset=0.,
                          blocks=None, trial_sets=None):
         """ Aligns the trial timeseries to the event specified plus the
