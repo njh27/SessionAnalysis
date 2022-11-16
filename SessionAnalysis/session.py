@@ -703,9 +703,10 @@ class Session(object):
 
         data_out = [] if len(data_out) == 0 else np.vstack(data_out)
         if return_inds:
-            del_sel = np.zeros(t_inds.size, dtype='bool')
-            del_sel[np.array(t_inds_to_delete)] = True
-            t_inds = t_inds[~del_sel]
+            if len(t_inds_to_delete) > 0:
+                del_sel = np.zeros(t_inds.size, dtype='bool')
+                del_sel[np.array(t_inds_to_delete, dtype=np.int64)] = True
+                t_inds = t_inds[~del_sel]
             return data_out, t_inds
         else:
             return data_out
