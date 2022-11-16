@@ -493,6 +493,9 @@ class Session(object):
             raise ValueError("Session already has data type {0}.".format(data_type))
         # Store reference to neuron meta data dictionaries for each trial
         self.meta_dict_name = meta_dict_name
+        # Set global dictionaries for each neuron found for properties that are
+        # session-wide for neurons
+        self.neuron_info = {}
         self.__validate_trial_data(trial_data)
         # Check to update data_names so we can find their associated list of
         # trials quickly later (e.g. in get_data_array)
@@ -509,6 +512,18 @@ class Session(object):
                 raise ValueError("Could not find meta data dictionary {0} for trial {1}.".format(self.meta_dict_name, t_ind))
             if not isinstance(tm_dict, dict):
                 raise ValueError("Meta data for trial {0} is not formatted as a dictionary type.".format(t_ind))
+            # Check consistency of global neuron info and update as needed
+            for neuron_name in t['data'].keys():
+                if neuron_name not in self.neuron_info.keys():
+                    self.neuron_info[neuron_name] = {}
+                for meta_info in t[self.meta_dict_name][neuron_name].keys():
+                    if meta_info.lower() == "class":
+                        if "class" not in self.neuron_info[neuron_name]:
+                            self.neuron_info[neuron_name]['class'] = t[self.meta_dict_name][neuron_name][meta_info]
+                        elif self.neuron_info[neuron_name]['class'] != t[self.meta_dict_name][neuron_name][meta_info]:
+                            raise ValueError("Neuron {0} has mismatched class ID {1} in trial {2} when {3} was expected.".format(neuron_name, t[self.meta_dict_name][neuron_name][meta_info], t_ind, self.neuron_info[neuron_name]['class']))
+                        else:
+                            raise RuntimeError("Not sure how we got here on trial {0}.".format(t_ind))
         for nn in new_names:
             if nn in self.__series_names.keys():
                 raise ValueError("Session already has data name {0}.".format(nn))
