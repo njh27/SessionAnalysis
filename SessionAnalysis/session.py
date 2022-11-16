@@ -550,7 +550,7 @@ class Session(object):
         """ Units of sigma must be given in ms and is converted to samples
         using the global neuron dt."""
         try:
-            if not isinstance(self['neurons'], sa.session.ConjoinedList):
+            if not isinstance(self['neurons'], ConjoinedList):
                 raise ValueError("Session must have the data_type 'neurons' added in a ConjoinedList to compute firing rates")
         except KeyError:
             raise ValueError("Session must have the data_type 'neurons' added in a ConjoinedList to compute firing rates")
