@@ -567,10 +567,11 @@ class Session(object):
         for neuron_trial in self['neurons']:
             # This should make sure to only loop over each neuron name once, rather than all possible data fields
             for neuron_name in neuron_trial[self.meta_dict_name].keys():
-                if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
-                    continue
                 new_series_name = neuron_name + series_name
-                neuron_trial['data'][new_series_name] = np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
+                if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
+                    neuron_trial[self.meta_dict_name][new_series_name]['spikes'] = None
+                else:
+                    neuron_trial['data'][new_series_name] = np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
                 new_names.add(new_series_name)
 
         for nn in new_names:
@@ -642,12 +643,20 @@ class Session(object):
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
+        if data_name == "neurons":
+            check_missing = True
+        else:
+            check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
         for t in t_inds:
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
                 continue
             trial_obj = self._trial_lists[data_name][t]
+            if check_missing:
+                if trial_obj[self.meta_dict_name][series_name]['spikes'] is None:
+                    # Data are missing for this neuron trial series
+                    continue
             trial_ts = trial_obj._timeseries
             try:
                 if time_window is None:
@@ -668,13 +677,23 @@ class Session(object):
         Call "data_names()" to get a list of available data names. """
         data_out = []
         data_name = self.__series_names[series_name]
+        if data_name == "neurons":
+            check_missing = True
+        else:
+            check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
+        t_inds_to_delete = []
         for i, t in enumerate(t_inds):
             if not self._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
-                t_inds = np.delete(t_inds, i)
+                t_inds_to_delete.append(i)
                 continue
             trial_obj = self._trial_lists[data_name][t]
+            if check_missing:
+                if trial_obj[self.meta_dict_name][series_name]['spikes'] is None:
+                    # Data are missing for this neuron trial series
+                    t_inds_to_delete.append(i)
+                    continue
             self._set_t_win(t, time_window)
             valid_tinds = self._session_trial_data[t]['curr_t_win']['valid_tinds']
             out_inds = self._session_trial_data[t]['curr_t_win']['out_inds']
@@ -684,6 +703,9 @@ class Session(object):
 
         data_out = [] if len(data_out) == 0 else np.vstack(data_out)
         if return_inds:
+            del_sel = np.zeros(t_inds.size, dtype='bool')
+            del_sel[np.array(t_inds_to_delete)] = True
+            t_inds = t_inds[~del_sel]
             return data_out, t_inds
         else:
             return data_out
