@@ -502,7 +502,15 @@ class Session(object):
         new_names = set()
         for t_ind, t in enumerate(trial_data):
             # Re-assign timeseries data
+            if t._timeseries.start != self._session_trial_data[t_ind]['timeseries'].start:
+                raise ValueError("Input data timeseries start time {0} does not match existing session timeseries start time {1}.".format(t._timeseries.start, self._session_trial_data[t_ind]['timeseries'].start))
+            if t._timeseries.stop != self._session_trial_data[t_ind]['timeseries'].stop:
+                raise ValueError("Input data timeseries start time {0} does not match existing session timeseries start time {1}.".format(t._timeseries.stop, self._session_trial_data[t_ind]['timeseries'].stop))
+            if t._timeseries.dt != self._session_trial_data[t_ind]['timeseries'].dt:
+                raise ValueError("Input data timeseries start time {0} does not match existing session timeseries start time {1}.".format(t._timeseries.dt, self._session_trial_data[t_ind]['timeseries'].dt))
             t._timeseries = self._session_trial_data[t_ind]['timeseries']
+            if "dt" not in self.neuron_info:
+                self.neuron_info['dt'] = t._timeseries.dt
             for k in t['data'].keys():
                 new_names.add(k)
             # Check for metadata dictionary
@@ -524,7 +532,7 @@ class Session(object):
                             raise ValueError("Neuron {0} has mismatched class ID {1} in trial {2} when {3} was expected.".format(neuron_name, t[self.meta_dict_name][neuron_name][meta_info], t_ind, self.neuron_info[neuron_name]['class']))
                         else:
                             # We found class in global and matches trial so this is good
-                            continue
+                            pass
         for nn in new_names:
             if nn in self.__series_names.keys():
                 raise ValueError("Session already has data name {0}.".format(nn))
