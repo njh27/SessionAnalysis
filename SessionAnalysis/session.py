@@ -566,7 +566,7 @@ class Session(object):
         # Loop over all neurons in each neuron trial
         for neuron_trial in self['neurons']:
             # This should make sure to only loop over each neuron name once, rather than all possible data fields
-            for neuron_name in neuron_trial[self.meta_dict_name].keys():
+            for neuron_name in neuron_trial[self.meta_dict_name]['neuron_names']:
                 new_series_name = neuron_name + series_name
                 neuron_trial[self.meta_dict_name]['series_to_name'][new_series_name] = neuron_name
                 if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
