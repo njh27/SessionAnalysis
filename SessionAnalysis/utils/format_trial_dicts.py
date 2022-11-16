@@ -275,6 +275,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         tdict['name'] = t['header']['name']
         tdict['events'] = {}
         tdict['meta_data'] = {}
+        tdict['meta_data']['series_to_name'] = {}
         tdict['data'] = {}
         # Get trial stop in units of samples to match the neuron spikes
         # Base on trial stop since it was more accurate when XS2 was screwey
@@ -291,6 +292,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             # Initate the neuron dictionary for this trial and this neuron
             tdict['meta_data'][neuron_meta[n_ind]['name']] = {}
             tdict['meta_data'][neuron_meta[n_ind]['name']]['class'] = neuron_meta[n_ind]['class']
+            tdict['meta_data']['series_to_name'][neuron_meta[n_ind]['name']] = neuron_meta[n_ind]['name']
             if n['spike_indices'][0] > stop_sample:
                 # This neuron has no spikes within this trial window
                 tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = None

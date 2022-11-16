@@ -568,10 +568,10 @@ class Session(object):
             # This should make sure to only loop over each neuron name once, rather than all possible data fields
             for neuron_name in neuron_trial[self.meta_dict_name].keys():
                 new_series_name = neuron_name + series_name
+                neuron_trial[self.meta_dict_name]['series_to_name'][new_series_name] = neuron_name
                 if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
-                    neuron_trial[self.meta_dict_name][new_series_name]['spikes'] = None
-                else:
-                    neuron_trial['data'][new_series_name] = np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
+                    continue
+                neuron_trial['data'][new_series_name] = np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
                 new_names.add(new_series_name)
 
         for nn in new_names:
@@ -690,7 +690,8 @@ class Session(object):
                 continue
             trial_obj = self._trial_lists[data_name][t]
             if check_missing:
-                if trial_obj[self.meta_dict_name][series_name]['spikes'] is None:
+                neuron_name = trial_obj[self.meta_dict_name]['series_to_name'][series_name]
+                if trial_obj[self.meta_dict_name][neuron_name]['spikes'] is None:
                     # Data are missing for this neuron trial series
                     t_inds_to_delete.append(i)
                     continue
