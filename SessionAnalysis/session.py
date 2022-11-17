@@ -562,6 +562,8 @@ class Session(object):
         kernel = np.exp(-.5 * (xvals / sigma) ** 2)
         kernel = kernel / np.sum(kernel)
 
+        # Rescale from spike bin counts to firing rate
+        fr_scale = 1000 / self.neuron_info['dt']
         new_names = set()
         # Loop over all neurons in each neuron trial
         for neuron_trial in self['neurons']:
@@ -571,7 +573,7 @@ class Session(object):
                 neuron_trial[self.meta_dict_name]['series_to_name'][new_series_name] = neuron_name
                 if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
                     continue
-                neuron_trial['data'][new_series_name] = np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
+                neuron_trial['data'][new_series_name] = fr_scale * np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
                 new_names.add(new_series_name)
 
         for nn in new_names:
