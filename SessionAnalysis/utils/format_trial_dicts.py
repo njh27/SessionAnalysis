@@ -242,11 +242,17 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         # Need a name for this neuron
         if use_class_names:
             try:
-                use_name = n['type__']
+                use_name = n.get('label')
                 if use_name is None:
                     # Skip to below
                     raise KeyError()
                 else:
+                    if use_name in ["putative_pc", "PC"]:
+                        use_name = "PC"
+                    elif use_name in ["putative_basket", "MLI"]:
+                        use_name = "MLI"
+                    else:
+                        raise ValueError("Unrecognized neuron label {0}.".format(use_name))
                     use_class = use_name
             except KeyError:
                 # Neuron does not have a class field so use default
@@ -260,6 +266,9 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             default_nums[use_name] = 0
         neuron_meta[n_ind]['name'] = use_name + "{:02d}".format(default_nums[use_name])
         neuron_meta[n_ind]['class'] = use_class
+        spike_order = np.argsort(n["spike_indices__"], kind='stable')
+        n['spike_indices__'] = n['spike_indices__'][spike_order]
+        n['spike_indices_channel__'] = n['spike_indices_channel__'][spike_order]
         neuron_meta[n_ind]['indexer'] = Indexer(n['spike_indices__'])
 
     if dt_data is None:
@@ -269,8 +278,6 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
     # Convert spike time cushion from ms to samples
     trial_list = []
     for t in maestro_data:
-        # if type(t['events']) != dict:
-        #     raise ValueError("Input trial_dict key 'events' for maestro_data must be a dictionary that maps event name to the time of the event.")
         tdict = {}
         tdict['name'] = t['header']['name']
         tdict['events'] = {}
@@ -278,6 +285,18 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         tdict['meta_data']['series_to_name'] = {}
         tdict['meta_data']['neuron_names'] = []
         tdict['data'] = {}
+        if not t['pl2_synced']:
+            # Trial was not successfully synced with pl2 data so skip
+            # fill dummy data
+            dt_duration = int(t['header']['_num_saved_scans'] / dt_data)
+            tdict['meta_data'][neuron_meta[n_ind]['name']] = {}
+            tdict['meta_data'][neuron_meta[n_ind]['name']]['class'] = neuron_meta[n_ind]['class']
+            tdict['meta_data']['series_to_name'][neuron_meta[n_ind]['name']] = neuron_meta[n_ind]['name']
+            tdict['meta_data']['neuron_names'].append(neuron_meta[n_ind]['name'])
+            tdict['data'][neuron_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
+            tdict['meta_data'][neuron_meta[n_ind]['name']]['spikes'] = None
+            trial_list.append(NeuronTrial(tdict, dt_data, start_data, data_name))
+            continue
         # Get trial stop in units of samples to match the neuron spikes
         # Base on trial stop since it was more accurate when XS2 was screwey
         stop_sample = int(np.ceil(t['plexon_start_stop'][1] * samples_per_ms)) # convert ms to samples
