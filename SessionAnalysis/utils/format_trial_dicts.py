@@ -242,13 +242,18 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         # Need a name for this neuron
         if use_class_names:
             try:
-                use_name = n.get('label')
+                if n['type__'] == 'NeurophysToolbox.ComplexSpikes':
+                    use_name = "CS"
+                else:
+                    use_name = n.get('label')
                 if use_name is None:
                     # Skip to below
                     raise KeyError()
                 else:
                     if use_name in ["putative_pc", "PC"]:
                         use_name = "PC"
+                    elif use_name in ["putative_cs", "CS"]:
+                        use_name = "CS"
                     elif use_name in ["putative_basket", "MLI"]:
                         use_name = "MLI"
                     else:
