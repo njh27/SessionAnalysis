@@ -319,6 +319,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             tdict['meta_data'][neuron_meta[n_ind]['name']]['class'] = neuron_meta[n_ind]['class']
             tdict['meta_data']['series_to_name'][neuron_meta[n_ind]['name']] = neuron_meta[n_ind]['name']
             tdict['meta_data']['neuron_names'].append(neuron_meta[n_ind]['name'])
+            tdict['meta_data'][neuron_meta[n_ind]['pl2_start_stop']] = [start_sample, stop_sample]
             tdict['data'][neuron_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
             if n['spike_indices__'][0] > stop_sample:
                 # This neuron has no spikes within this trial window
