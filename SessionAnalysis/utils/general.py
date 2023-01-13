@@ -151,6 +151,25 @@ def zero_phase_kernel(x, x_center):
     return kernel
 
 
+def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
+    """ Uses Gaussian kernel to smooth "data" with width cutoff_sigma"""
+    if cutoff_sigma > 0.5*len(data):
+        raise ValueError("{0} data points is not enough for cutoff sigma of {1}.".format(len(data), cutoff_sigma))
+    x_win = int(np.around(sigma * cutoff_sigma))
+    xvals = np.arange(-1 * x_win, x_win + 1)
+    kernel = np.exp(-.5 * (xvals / sigma) ** 2)
+    kernel = kernel / np.sum(kernel)
+    kernel = zero_phase_kernel(kernel, x_win)
+    if pad_data:
+        padded = np.hstack([[data[0]]*int(np.ceil(cutoff_sigma)), data, [data[-1]]*int(np.ceil(cutoff_sigma))])
+        convolved_data = np.convolve(padded, kernel, mode='same')
+        convolved_data = convolved_data[cutoff_sigma:-cutoff_sigma]
+    else:
+        convolved_data = np.convolve(data, kernel, mode='same')
+
+    return convolved_data
+
+
 def cart2pol(x, y):
     theta = np.arctan2(y, x)
     rho = np.sqrt(x**2 + y**2)
