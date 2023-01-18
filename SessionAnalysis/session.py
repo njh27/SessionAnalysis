@@ -481,13 +481,14 @@ class Session(object):
 
         return None
 
-    def add_neuron_trials(self, trial_data, meta_dict_name='meta_data'):
+    def add_neuron_trials(self, trial_data, neuron_meta, meta_dict_name='meta_data'):
         """ Adds a new list of trial dictionaries that will be conjoined with
         the existing list initialized via __init__. New trials are assigned the
         same timeseries as the __main trials. Reserved specifically for neurons
         with data_type "neurons" for tracking class ID of neurons and maybe
         other things like being absent on particular trials searching a neuron
-        metadata. """
+        metadata. Input a dictionary of Neuron objects in 'neuron_meta' that
+        will be used for deciding good trials, tuning, etc. """
         data_type = "neurons"
         if data_type in self._trial_lists:
             raise ValueError("Session already has data type {0}.".format(data_type))
@@ -524,6 +525,7 @@ class Session(object):
             for neuron_name in t['data'].keys():
                 if neuron_name not in self.neuron_info.keys():
                     self.neuron_info[neuron_name] = {}
+                    self.neuron_info[neuron_name]['Neuron'] = neuron_meta[neuron_name]
                 for meta_info in t[self.meta_dict_name][neuron_name].keys():
                     if meta_info.lower() == "class":
                         if "class" not in self.neuron_info[neuron_name]:
