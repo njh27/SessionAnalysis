@@ -277,7 +277,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         n['spike_indices__'] = n['spike_indices__'][spike_order]
         n['spike_indices_channel__'] = n['spike_indices_channel__'][spike_order]
         trial_meta[n_ind]['indexer'] = Indexer(n['spike_indices__'])
-        neuron_meta[trial_meta[n_ind]['name']] = Neuron(neurons, trial_meta[n_ind]['name'], cell_type=use_class)
+        neuron_meta[trial_meta[n_ind]['name']] = Neuron(n, trial_meta[n_ind]['name'], cell_type=use_class)
 
     if dt_data is None:
         # Use sampling rate in ms as dt_data
