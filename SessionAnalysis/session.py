@@ -496,7 +496,7 @@ class Session(object):
         self.meta_dict_name = meta_dict_name
         # Set global dictionaries for each neuron found for properties that are
         # session-wide for neurons
-        self.neuron_info = {}
+        self.neuron_info = {'neuron_names': []}
         self.__validate_trial_data(trial_data)
         # Check to update data_names so we can find their associated list of
         # trials quickly later (e.g. in get_data_array)
@@ -526,6 +526,7 @@ class Session(object):
                 if neuron_name not in self.neuron_info.keys():
                     self.neuron_info[neuron_name] = {}
                     self.neuron_info[neuron_name]['Neuron'] = neuron_meta[neuron_name]
+                    self.neuron_info['neuron_names'].append(neuron_name)
                 for meta_info in t[self.meta_dict_name][neuron_name].keys():
                     if meta_info.lower() == "class":
                         if "class" not in self.neuron_info[neuron_name]:
@@ -683,6 +684,15 @@ class Session(object):
         data_name = self.__series_names[series_name]
         if data_name == "neurons":
             check_missing = True
+            t_set_name = sess._trial_lists['neurons'][500]['meta_data']['series_to_name'][series_name]
+            if trial_sets is None:
+                trial_sets = [t_set_name]
+            elif not isinstance(trial_sets, list):
+                trial_sets = [trial_sets]
+                trial_sets.append(t_set_name)
+            else:
+                #trial_sets is a list
+                trial_sets.append(t_set_name)
         else:
             check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
