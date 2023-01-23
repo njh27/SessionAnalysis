@@ -496,7 +496,7 @@ class Session(object):
         self.meta_dict_name = meta_dict_name
         # Set global dictionaries for each neuron found for properties that are
         # session-wide for neurons
-        self.neuron_info = {'neuron_names': []}
+        self.neuron_info = neuron_meta
         self.__validate_trial_data(trial_data)
         # Check to update data_names so we can find their associated list of
         # trials quickly later (e.g. in get_data_array)
@@ -524,14 +524,10 @@ class Session(object):
             # Check consistency of global neuron info and update as needed
             for neuron_name in t['data'].keys():
                 if neuron_name not in self.neuron_info.keys():
-                    self.neuron_info[neuron_name] = {}
-                    self.neuron_info[neuron_name]['Neuron'] = neuron_meta[neuron_name]
-                    self.neuron_info['neuron_names'].append(neuron_name)
+                    raise ValueError("Neuron name {0} found in trial {1} not recognized in neuron meta info!".format(neuron_name, t_ind))
                 for meta_info in t[self.meta_dict_name][neuron_name].keys():
                     if meta_info.lower() == "class":
-                        if "class" not in self.neuron_info[neuron_name]:
-                            self.neuron_info[neuron_name]['class'] = t[self.meta_dict_name][neuron_name][meta_info]
-                        elif self.neuron_info[neuron_name]['class'] != t[self.meta_dict_name][neuron_name][meta_info]:
+                        if self.neuron_info[neuron_name].cell_type != t[self.meta_dict_name][neuron_name][meta_info]:
                             raise ValueError("Neuron {0} has mismatched class ID {1} in trial {2} when {3} was expected.".format(neuron_name, t[self.meta_dict_name][neuron_name][meta_info], t_ind, self.neuron_info[neuron_name]['class']))
                         else:
                             # We found class in global and matches trial so this is good
@@ -569,11 +565,10 @@ class Session(object):
         fr_scale = 1000 / self.neuron_info['dt']
         new_names = set()
         # Loop over all neurons in each neuron trial
-        for neuron_trial in self['neurons']:
-            # This should make sure to only loop over each neuron name once, rather than all possible data fields
-            for neuron_name in neuron_trial[self.meta_dict_name]['neuron_names']:
-                new_series_name = neuron_name + series_name
-                neuron_trial[self.meta_dict_name]['series_to_name'][new_series_name] = neuron_name
+        for neuron_name in self.neuron_info['neuron_names']:
+            new_series_name = neuron_name + series_name
+            self.neuron_info['series_to_name'][new_series_name] = neuron_name
+            for neuron_trial in self['neurons']:
                 if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
                     continue
                 neuron_trial['data'][new_series_name] = fr_scale * np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
@@ -650,6 +645,15 @@ class Session(object):
         data_name = self.__series_names[series_name]
         if data_name == "neurons":
             check_missing = True
+            neuron_name = self.neuron_info['series_to_name'][series_name]
+            if trial_sets is None:
+                trial_sets = [neuron_name]
+            elif not isinstance(trial_sets, list):
+                trial_sets = [trial_sets]
+                trial_sets.append(neuron_name)
+            else:
+                #trial_sets is a list
+                trial_sets.append(neuron_name)
         else:
             check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
@@ -684,15 +688,15 @@ class Session(object):
         data_name = self.__series_names[series_name]
         if data_name == "neurons":
             check_missing = True
-            t_set_name = sess._trial_lists['neurons'][500]['meta_data']['series_to_name'][series_name]
+            neuron_name = self.neuron_info['series_to_name'][series_name]
             if trial_sets is None:
-                trial_sets = [t_set_name]
+                trial_sets = [neuron_name]
             elif not isinstance(trial_sets, list):
                 trial_sets = [trial_sets]
-                trial_sets.append(t_set_name)
+                trial_sets.append(neuron_name)
             else:
                 #trial_sets is a list
-                trial_sets.append(t_set_name)
+                trial_sets.append(neuron_name)
         else:
             check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
@@ -704,7 +708,6 @@ class Session(object):
                 continue
             trial_obj = self._trial_lists[data_name][t]
             if check_missing:
-                neuron_name = trial_obj[self.meta_dict_name]['series_to_name'][series_name]
                 if trial_obj[self.meta_dict_name][neuron_name]['spikes'] is None:
                     # Data are missing for this neuron trial series
                     t_inds_to_delete.append(i)
@@ -788,7 +791,7 @@ class Session(object):
             return []
         all_blk_indices = []
         for blk in blocks:
-            all_blk_indices.extend(self.__parse_block_to_indices(blk))
+            all_blk_indices.append(self.__parse_block_to_indices(blk))
         if len(all_blk_indices) > 0:
             # Can only do this if indices are found
             all_blk_indices = np.int32(np.hstack(all_blk_indices))
@@ -814,7 +817,7 @@ class Session(object):
         all_trial_sets = self._get_trial_set(trial_sets[0])
         if len(trial_sets) > 1:
             for ts in trial_sets[1:]:
-                all_trial_sets = np.logical_or(all_trial_sets, self._get_trial_set(ts))
+                all_trial_sets = np.logical_and(all_trial_sets, self._get_trial_set(ts))
         # Scan all block indices and trials
         keep_inds = np.zeros(all_blk_indices.shape[0], dtype='bool')
         for n_ind, t_ind in enumerate(all_blk_indices):

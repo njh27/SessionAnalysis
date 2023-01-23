@@ -235,7 +235,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
     """ Join spike data from neurons to each trial in maestro_data and convert
     to an output list of NeuronTrial objects. """
 
-    neuron_meta = {}
+    neuron_meta = {'series_to_name': {}, 'neuron_names': []}
     trial_meta = {}
     default_nums = {}
     default_name = "n_"
@@ -278,6 +278,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         n['spike_indices_channel__'] = n['spike_indices_channel__'][spike_order]
         trial_meta[n_ind]['indexer'] = Indexer(n['spike_indices__'])
         neuron_meta[trial_meta[n_ind]['name']] = Neuron(n, trial_meta[n_ind]['name'], cell_type=use_class)
+        neuron_meta['series_to_name'][trial_meta[n_ind]['name']] = trial_meta[n_ind]['name']
+        neuron_meta['neuron_names'].append(trial_meta[n_ind]['name'])
 
     if dt_data is None:
         # Use sampling rate in ms as dt_data
@@ -290,7 +292,6 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         tdict['name'] = t['header']['name']
         tdict['events'] = {}
         tdict['meta_data'] = {}
-        tdict['meta_data']['series_to_name'] = {}
         tdict['meta_data']['neuron_names'] = []
         tdict['data'] = {}
         if not t['pl2_synced']:
@@ -299,7 +300,6 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             dt_duration = int(t['header']['_num_saved_scans'] / dt_data)
             tdict['meta_data'][trial_meta[n_ind]['name']] = {}
             tdict['meta_data'][trial_meta[n_ind]['name']]['class'] = trial_meta[n_ind]['class']
-            tdict['meta_data']['series_to_name'][trial_meta[n_ind]['name']] = trial_meta[n_ind]['name']
             tdict['meta_data']['neuron_names'].append(trial_meta[n_ind]['name'])
             tdict['data'][trial_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
             tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] = None
@@ -321,7 +321,6 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             # Initate the neuron dictionary for this trial and this neuron
             tdict['meta_data'][trial_meta[n_ind]['name']] = {}
             tdict['meta_data'][trial_meta[n_ind]['name']]['class'] = trial_meta[n_ind]['class']
-            tdict['meta_data']['series_to_name'][trial_meta[n_ind]['name']] = trial_meta[n_ind]['name']
             tdict['meta_data']['neuron_names'].append(trial_meta[n_ind]['name'])
             tdict['data'][trial_meta[n_ind]['name']] = np.zeros(dt_duration, dtype=np.uint16)
             if n['spike_indices__'][0] > stop_sample:
