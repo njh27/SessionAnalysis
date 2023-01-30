@@ -545,7 +545,8 @@ class Session(object):
         return None
 
     ##### METHODS THAT ARE SPECIFIC TO SESSIONS WITH NEURONS ADDED #########
-    def gauss_convolved_FR(self, sigma, cutoff_sigma=4, series_name="_gauss"):
+    def gauss_convolved_FR(self, sigma, cutoff_sigma=4, series_name="_gauss",
+                            set_as_default=True):
         """ Units of sigma must be given in ms and is converted to samples
         using the global neuron dt."""
         try:
@@ -568,8 +569,9 @@ class Session(object):
         for neuron_name in self.neuron_info['neuron_names']:
             new_series_name = neuron_name + series_name
             self.neuron_info['series_to_name'][new_series_name] = neuron_name
-            # Assign this as default series for each neuron
-            self.neuron_info[neuron_name].use_series = new_series_name
+            if set_as_default:
+                # Assign this as default series for each neuron
+                self.neuron_info[neuron_name].set_use_series(new_series_name)
             for neuron_trial in self['neurons']:
                 if neuron_trial[self.meta_dict_name][neuron_name]['spikes'] is None:
                     continue
@@ -579,6 +581,18 @@ class Session(object):
         for nn in new_names:
             self.__series_names[nn] = "neurons"
         return None
+
+    def set_default_neuron_series(self, series_name):
+        """ Will search for neuron data series names containing the string in
+        'series_name' and set that series to the default. If series_name is a
+        list, this procedure is done for each element of the list.
+        """
+        if not isinstance(series_name, list):
+            series_name = [series_name]
+        for s_name in self.neuron_info['series_to_name']:
+            for check_name in series_name:
+                if check_name in s_names:
+                    self.neuron_info[self.neuron_info[s_name]].set_use_series(s_name)
 
     def align_trial_data(self, alignment_event, alignment_offset=0.,
                          blocks=None, trial_sets=None):
