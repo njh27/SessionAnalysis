@@ -272,6 +272,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         else:
             default_nums[use_name] = 0
         trial_meta[n_ind]['name'] = use_name + "{:02d}".format(default_nums[use_name])
+        print("name for unit ind {0} is {1}.".format(n_ind, trial_meta[n_ind]['name']))
         trial_meta[n_ind]['class'] = use_class
         spike_order = np.argsort(n["spike_indices__"], kind='stable')
         n['spike_indices__'] = n['spike_indices__'][spike_order]
