@@ -258,6 +258,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                         use_name = "CS"
                     elif use_name in ["putative_basket", "MLI"]:
                         use_name = "MLI"
+                    elif use_name in ["putative_mf", "MF"]:
+                        use_name = "MF"
                     else:
                         raise ValueError("Unrecognized neuron label {0}.".format(use_name))
                     use_class = use_name
