@@ -246,6 +246,9 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             try:
                 if n['type__'] == 'NeurophysToolbox.ComplexSpikes':
                     use_name = "CS"
+                elif if n['type__'] == 'NeurophysToolbox.PurkinjeCell':
+                    use_name = "PC"
+                    print("This is a confirmed PC needs a CS match in its Neuron object!")
                 else:
                     use_name = n.get('label')
                 if use_name is None:
