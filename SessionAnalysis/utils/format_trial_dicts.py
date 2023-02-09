@@ -255,7 +255,6 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                     # Skip to below
                     raise KeyError()
                 elif use_name.lower() == "unlabeled":
-                    print("Neuron {0} has not yet been labeled and will be default labeled!".format(n_ind))
                     raise KeyError()
                 else:
                     if use_name in ["putative_pc", "PC"]:
@@ -275,6 +274,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                     use_class = use_name
             except KeyError:
                 # Neuron does not have a class field so use default
+                print("Neuron {0} has not yet been labeled and will be default labeled {1}!".format(n_ind, default_name))
                 use_name = default_name
                 use_class = None
         else:
