@@ -254,6 +254,9 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                 if use_name is None:
                     # Skip to below
                     raise KeyError()
+                elif use_name.lower() == "unlabeled":
+                    print("Neuron {0} has not yet been labeled and will be default labeled!".format(n_ind))
+                    raise KeyError()
                 else:
                     if use_name in ["putative_pc", "PC"]:
                         use_name = "PC"
@@ -263,6 +266,10 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                         use_name = "MLI"
                     elif use_name in ["putative_mf", "MF"]:
                         use_name = "MF"
+                    elif use_name in ["putative_golgi", "GC"]:
+                        use_name = "GC"
+                    elif use_name in ["putative_ubc", "UBC"]:
+                        use_name = "UBC"
                     else:
                         raise ValueError("Unrecognized neuron label {0}.".format(use_name))
                     use_class = use_name
