@@ -248,7 +248,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                     use_name = "CS"
                 elif n['type__'] == 'NeurophysToolbox.PurkinjeCell':
                     use_name = "PC"
-                    print("This is a confirmed PC needs a CS match in its Neuron object!")
+                    if n['cs_spike_indices__'].size == 0:
+                        raise ValueError("This is a confirmed PC needs a CS match in its Neuron object!")
                 else:
                     use_name = n.get('label')
                 if use_name is None:
@@ -257,8 +258,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                 elif use_name.lower() == "unlabeled":
                     raise KeyError()
                 else:
-                    if use_name in ["putative_pc", "PC"]:
-                        use_name = "PC"
+                    if use_name in ["putative_pc"]:
+                        use_name = "put_PC"
                     elif use_name in ["putative_cs", "CS"]:
                         use_name = "CS"
                     elif use_name in ["putative_basket", "MLI"]:
