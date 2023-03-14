@@ -1,7 +1,7 @@
 import numpy as np
 from SessionAnalysis.trial import ApparatusTrial, BehavioralTrial, NeuronTrial
 from SessionAnalysis.utils.general import Indexer
-from NeuronAnalysis.neurons import Neuron
+from NeuronAnalysis.neurons import Neuron, PurkinjeCell
 
 
 
@@ -246,10 +246,11 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             try:
                 if n['type__'] == 'NeurophysToolbox.ComplexSpikes':
                     use_name = "CS"
+                    print("Found a CS without any SS for unit {0}.".format(n_ind))
                 elif n['type__'] == 'NeurophysToolbox.PurkinjeCell':
                     use_name = "PC"
                     if n['cs_spike_indices__'].size == 0:
-                        raise ValueError("This is a confirmed PC needs a CS match in its Neuron object!")
+                        raise ValueError("Unit {0} is a confirmed PC but does not have a CS match in its Neuron object!".format(n_ind))
                 else:
                     use_name = n.get('label')
                 if use_name is None:
@@ -271,7 +272,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                     elif use_name in ["putative_ubc", "UBC"]:
                         use_name = "UBC"
                     else:
-                        raise ValueError("Unrecognized neuron label {0}.".format(use_name))
+                        if use_name != "PC":
+                            raise ValueError("Unrecognized neuron label {0}.".format(use_name))
                     use_class = use_name
             except KeyError:
                 # Neuron does not have a class field so use default
@@ -291,7 +293,13 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         n['spike_indices__'] = n['spike_indices__'][spike_order]
         n['spike_indices_channel__'] = n['spike_indices_channel__'][spike_order]
         trial_meta[n_ind]['indexer'] = Indexer(n['spike_indices__'])
-        neuron_meta[trial_meta[n_ind]['name']] = Neuron(n, trial_meta[n_ind]['name'], cell_type=use_class)
+        if use_class == "PC":
+            cs_order = np.argsort(n["cs_spike_indices__"], kind='stable')
+            n['cs_spike_indices__'] = n['cs_spike_indices__'][cs_order]
+            n['cs_spike_indices_channel__'] = n['cs_spike_indices_channel__'][cs_order]
+            neuron_meta[trial_meta[n_ind]['name']] = PurkinjeCell(n, trial_meta[n_ind]['name'])
+        else:
+            neuron_meta[trial_meta[n_ind]['name']] = Neuron(n, trial_meta[n_ind]['name'], cell_type=use_class)
         neuron_meta['series_to_name'][trial_meta[n_ind]['name']] = trial_meta[n_ind]['name']
         neuron_meta['neuron_names'].append(trial_meta[n_ind]['name'])
 
@@ -340,6 +348,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             if n['spike_indices__'][0] > stop_sample:
                 # This neuron has no spikes within this trial window
                 tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] = None
+                if trial_meta[n_ind]['class'] == "PC":
+                    tdict['meta_data'][trial_meta[n_ind]['name']]['complex_spikes'] = None
                 continue
 
             ind_spikes_stop = trial_meta[n_ind]['indexer'].move_index_next(stop_sample, ">")
@@ -353,10 +363,22 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                 ind_spikes_start = 0
 
             # Get spikes only within the trial window
-            tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] = np.copy(np.float64(n['spike_indices__'][ind_spikes_start:ind_spikes_stop]))
+            tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] = np.asarray(np.copy(n['spike_indices__'][ind_spikes_start:ind_spikes_stop]), dtype=np.float64)
             t_spikes_sel = np.logical_and(tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] >= start_sample,
                                           tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] < stop_sample)
             tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'] = tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'][t_spikes_sel]
+
+            if trial_meta[n_ind]['class'] == "PC":
+                # Save Complex spike times with simple operator instead of search since so many fewer of them
+                cs_spikes_sel = np.logical_and(n['cs_spike_indices__'] >= start_sample,
+                                               n['cs_spike_indices__'] < stop_sample)
+                tdict['meta_data'][trial_meta[n_ind]['name']]['complex_spikes'] = np.asarray(np.copy(n['cs_spike_indices__'][cs_spikes_sel]), dtype=np.float64)
+                if tdict['meta_data'][trial_meta[n_ind]['name']]['complex_spikes'].size > 0:
+                    # Found complex spikes for this trial
+                    # Adjust indices to trial window starting at 0
+                    tdict['meta_data'][trial_meta[n_ind]['name']]['complex_spikes'] -= start_sample
+                    # Convert to ms within trial
+                    tdict['meta_data'][trial_meta[n_ind]['name']]['complex_spikes'] *= (1000 / n['sampling_rate__'])
 
             if tdict['meta_data'][trial_meta[n_ind]['name']]['spikes'].size == 0:
                 # No spikes for this trial
