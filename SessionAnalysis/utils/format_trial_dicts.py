@@ -238,7 +238,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
     neuron_meta = {'series_to_name': {}, 'neuron_names': []}
     trial_meta = {}
     default_nums = {}
-    default_name = "n_"
+    default_name = "N"
     for n_ind, n in enumerate(neurons):
         trial_meta[n_ind] = {}
         # Need a name for this neuron
@@ -256,11 +256,11 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                 if use_name is None:
                     # Skip to below
                     raise KeyError()
-                elif use_name.lower() == "unlabeled":
+                elif use_name.lower() in ["unlabeled", "unknown"]:
                     raise KeyError()
                 else:
                     if use_name in ["putative_pc"]:
-                        use_name = "put_PC"
+                        use_name = "putPC"
                     elif use_name in ["putative_cs", "CS"]:
                         use_name = "CS"
                     elif use_name in ["putative_basket", "MLI"]:
@@ -277,16 +277,15 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                     use_class = use_name
             except KeyError:
                 # Neuron does not have a class field so use default
-                print("Neuron {0} has not yet been labeled and will be default labeled {1}!".format(n_ind, default_name))
                 use_name = default_name
-                use_class = None
+                use_class = "unknown"
         else:
             use_name = default_name
         if use_name in default_nums:
             default_nums[use_name] += 1
         else:
             default_nums[use_name] = 0
-        trial_meta[n_ind]['name'] = use_name + "{:02d}".format(default_nums[use_name])
+        trial_meta[n_ind]['name'] = use_name + "_" + "{:02d}".format(default_nums[use_name])
         print("name for unit ind {0} is {1}.".format(n_ind, trial_meta[n_ind]['name']))
         trial_meta[n_ind]['class'] = use_class
         spike_order = np.argsort(n["spike_indices__"], kind='stable')
