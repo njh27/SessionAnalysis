@@ -295,7 +295,6 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         if use_class == "PC":
             cs_order = np.argsort(n["cs_spike_indices__"], kind='stable')
             n['cs_spike_indices__'] = n['cs_spike_indices__'][cs_order]
-            n['cs_spike_indices_channel__'] = n['cs_spike_indices_channel__'][cs_order]
             neuron_meta[trial_meta[n_ind]['name']] = PurkinjeCell(n, trial_meta[n_ind]['name'])
         else:
             neuron_meta[trial_meta[n_ind]['name']] = Neuron(n, trial_meta[n_ind]['name'], cell_type=use_class)
