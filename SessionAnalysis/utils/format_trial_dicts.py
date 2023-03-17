@@ -271,6 +271,8 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                         use_name = "GC"
                     elif use_name in ["putative_ubc", "UBC"]:
                         use_name = "UBC"
+                    elif use_name in ["putative_stellate", "SC"]:
+                        use_name = "SC"
                     else:
                         if use_name != "PC":
                             raise ValueError("Unrecognized neuron label {0}.".format(use_name))
