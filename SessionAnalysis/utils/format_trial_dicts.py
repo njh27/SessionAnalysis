@@ -231,7 +231,7 @@ def maestro_to_behavior_trial(maestro_data, dt_data, start_data=0,
 
 def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
                             default_name="n_", use_class_names=True,
-                            data_name='neurons'):
+                            data_name='neurons', verbose=False):
     """ Join spike data from neurons to each trial in maestro_data and convert
     to an output list of NeuronTrial objects. """
 
@@ -246,7 +246,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
             try:
                 if n['type__'] == 'NeurophysToolbox.ComplexSpikes':
                     use_name = "CS"
-                    print("Found a CS without any SS for unit {0}.".format(n_ind))
+                    if verbose: print("Found a CS without any SS for unit {0}.".format(n_ind))
                 elif n['type__'] == 'NeurophysToolbox.PurkinjeCell':
                     use_name = "PC"
                     if n['cs_spike_indices__'].size == 0:
@@ -288,7 +288,7 @@ def maestro_to_neuron_trial(maestro_data, neurons, dt_data=None, start_data=0,
         else:
             default_nums[use_name] = 0
         trial_meta[n_ind]['name'] = use_name + "_" + "{:02d}".format(default_nums[use_name])
-        print("name for unit ind {0} is {1}.".format(n_ind, trial_meta[n_ind]['name']))
+        if verbose: print("name for unit ind {0} is {1}.".format(n_ind, trial_meta[n_ind]['name']))
         trial_meta[n_ind]['class'] = use_class
         spike_order = np.argsort(n["spike_indices__"], kind='stable')
         n['spike_indices__'] = n['spike_indices__'][spike_order]
