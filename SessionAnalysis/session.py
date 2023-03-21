@@ -449,7 +449,6 @@ class Session(object):
         self.blocks = {}
         self.trial_sets = {}
         self.__del_trial_set__ = True
-        self.neurons = []
 
     def add_trial_data(self, trial_data, data_type=None):
         """ Adds a new list of trial dictionaries that will be conjoined with
@@ -660,6 +659,8 @@ class Session(object):
         data_out = []
         data_name = self.__series_names[series_name]
         if data_name == "neurons":
+            # If requested data is a neuron we need to add its valid trial
+            # index to the input trial_sets
             check_missing = True
             neuron_name = self.neuron_info['series_to_name'][series_name]
             if trial_sets is None:
@@ -703,6 +704,8 @@ class Session(object):
         data_out = []
         data_name = self.__series_names[series_name]
         if data_name == "neurons":
+            # If requested data is a neuron we need to add its valid trial
+            # index to the input trial_sets
             check_missing = True
             neuron_name = self.neuron_info['series_to_name'][series_name]
             if trial_sets is None:
@@ -1070,16 +1073,16 @@ class Session(object):
                 trial_names.append(trial['trial_name'])
         return trial_names
 
-    def data_names(self):
+    def get_data_names(self):
         """Provides a list of the available data names. """
         return [x for x in self._trial_lists.keys() if x[0:2] != "__"]
 
-    def series_names(self):
+    def get_series_names(self):
         """Provides a list of the available data series names under the given
         data_name. """
         return [x for x in self.__series_names.keys()]
 
-    def event_names(self):
+    def get_event_names(self):
         """ Provides a list of all event names in the entire data set. """
         all_names = set()
         for st in self._session_trial_data:
@@ -1087,18 +1090,25 @@ class Session(object):
                 all_names.add(ev)
         return [x for x in all_names]
 
-    def trial_set_names(self):
+    def get_trial_set_names(self):
         """ Provides a list of all trial_set names in the session object. """
         all_names = set()
         for ts in self.trial_sets.keys():
             all_names.add(ts)
         return [x for x in all_names]
 
-    def block_names(self):
+    def get_block_names(self):
         """ Provides a list of all block names in the session object. """
         all_names = set()
         for blk in self.blocks.keys():
             all_names.add(blk)
+        return [x for x in all_names]
+
+    def get_neuron_names(self):
+        """ Provides a list of all neuron names joined to the session object. """
+        all_names = set()
+        for n_name in self.neuron_info['neuron_names']:
+            all_names.add(n_name)
         return [x for x in all_names]
     ###########################################################################
 
@@ -1129,9 +1139,6 @@ class Session(object):
             _trial_lists
             trial_sets
         """
-        if len(self.neurons) > 0:
-            raise ValueError("Deletion with neurons present not implemented yet!")
-            self.neurons = []
         # Update the block windows
         checked_wins = set()
         for blk in self.blocks:
@@ -1163,6 +1170,12 @@ class Session(object):
             for ts in self.trial_sets.keys():
                 self.trial_sets[ts] = np.delete(self.trial_sets[ts], index)
             self.__verify_data_lengths()
+        # If neurons are present, we need to recompute their tuning/fits on the
+        # newly updated trial sets
+        if hasattr(self, "neuron_info"):
+            if isinstance(self.neuron_info, dict):
+                for n_name in self.neuron_info['neuron_names']:
+                    self.neuron_info[n_name].recompute_fits()
         self.__del_trial_set__ = True # Always set back to True so this function works as normal
         return None
 
