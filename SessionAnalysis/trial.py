@@ -135,7 +135,7 @@ class Trial(dict):
                         d_len = len(self.data[d_key])
                     else:
                         if d_len != len(self.data[d_key]):
-                            raise ValueError("Each data series must have the same lenght!. Data key '{0}' does not match previous.".format(d_key))
+                            raise ValueError("Each data series must have the same length!. Data key '{0}' does not match previous.".format(d_key))
                 except TypeError:
                     raise TypeError("Each key in dictionary 'data' must return an object with valid __len__ function.")
             else:
@@ -180,6 +180,11 @@ class Trial(dict):
         else:
             # No trial data present
             pass
+
+    def add_data_series(self, series_name, series_data):
+        if len(series_data) != self.duration:
+            raise ValueError("New data series must contain the same number of data timepoints as existing duration {0}.".format(self.duration))
+        self.data[series_name] = series_data
 
     def get_data(self, series):
         """ Gets data from data series 'series' within the specified TIME

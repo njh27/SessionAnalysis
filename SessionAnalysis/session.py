@@ -480,6 +480,19 @@ class Session(object):
 
         return None
 
+    def add_data_series(self, trial_data_type, new_series_name):
+        """ Updates the session object in the event that you add a data series
+        to trial objects after initiating the session, such as retinal slip.
+        The data series name will be registered with the session so it can find
+        it.
+        """
+        if trial_data_type not in self._trial_lists:
+            raise ValueError("Session does not contrain trial objects of input type {0} so new series cannot be added to it.".format(trial_data_type))
+        if new_series_name in self.__series_names.keys():
+            raise ValueError("Session already has data series name {0}.".format(new_series_name))
+        self.__series_names[new_series_name] = trial_data_type
+
+
     def add_neuron_trials(self, trial_data, neuron_meta, meta_dict_name='meta_data'):
         """ Adds a new list of trial dictionaries that will be conjoined with
         the existing list initialized via __init__. New trials are assigned the
