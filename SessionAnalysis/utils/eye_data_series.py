@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 
-def acc_from_vel(velocity, filter_win):
+def acc_from_vel(velocity, filter_win, axis=1):
     """ Computes the acceleration from the velocity.  Velocity is assumed to be
         in the format as output by eye_data_window and acceleration will be
         computed along the rows. Filter win will be converted to next odd
@@ -12,8 +12,10 @@ def acc_from_vel(velocity, filter_win):
     filter_win = int(filter_win)
     if filter_win % 2 == 0:
         filter_win += 1
+    # DO NOT WANT TO ALTER INPUTS!
+    velocity = np.copy(velocity)
     velocity[np.isnan(velocity)] = 0
-    return signal.savgol_filter(velocity, filter_win, 1, deriv=1, axis=1) * 1000
+    return signal.savgol_filter(velocity, filter_win, 1, deriv=1, axis=axis) * 1000
 
 
 def mode1D(x):
