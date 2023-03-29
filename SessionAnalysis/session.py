@@ -815,12 +815,38 @@ class Session(object):
 
     def __parse_blocks_to_indices(self, blocks):
         """ Quick loop function that can iteratively parse multiple block
-        strings in a list by calling __parse_block_to_indices. """
+        strings in a list by calling __parse_block_to_indices. If blocks is
+        input as a list of integers or numpy array of integers, these indices
+        are returned as a unique, sorted numpy array of indices for trials. """
+        is_raw_inds = False
+        if isinstance(blocks, list):
+            if len(blocks) == 0:
+                # empty list
+                return np.array([], dtype=np.int32)
+            all_ints = True
+            for el in blocks:
+                if not isinstance(el, int):
+                    # Failed our check that this is list of integer indices
+                    all_ints = False
+                    break
+            if all_ints:
+                is_raw_inds = True
+            all_blk_indices = np.array(blocks, dtype=np.int32)
+        if isinstance(blocks, np.ndarray):
+            if len(blocks) == 0:
+                # empty list
+                return np.array([], dtype=np.int32)
+            is_raw_inds = True
+            all_blk_indices = np.int32(blocks)
+        if is_raw_inds:
+            # Above determined input was raw indices list or numpy array
+            return np.unique(all_blk_indices) # Unique AND sorted
+
         if type(blocks) != list:
             blocks = [blocks]
         if len(blocks) == 0:
             # Blocks is empty
-            return []
+            return np.array([], dtype=np.int32)
         all_blk_indices = []
         for blk in blocks:
             all_blk_indices.append(self.__parse_block_to_indices(blk))
