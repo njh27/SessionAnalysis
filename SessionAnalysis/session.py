@@ -831,7 +831,7 @@ class Session(object):
                     break
             if all_ints:
                 is_raw_inds = True
-            all_blk_indices = np.array(blocks, dtype=np.int32)
+                all_blk_indices = np.array(blocks, dtype=np.int32)
         if isinstance(blocks, np.ndarray):
             if len(blocks) == 0:
                 # empty list
