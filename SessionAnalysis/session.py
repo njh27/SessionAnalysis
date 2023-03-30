@@ -780,7 +780,16 @@ class Session(object):
 
     def _get_trial_set(self, set_name):
         """Tries to get the trial indices associated with the specified trial
-        set string and throws a more appropriate error during failure. """
+        set string and throws a more appropriate error during failure. If
+        set_name is an appropriate numpy array trial set index, it is returned
+        as-is. """
+        if isinstance(set_name, np.ndarray):
+            if len(set_name) != len(self):
+                raise ValueError("Trial sets input as numpy ndarray must be the same size as the session, 1 entry per trial!")
+            if set_name.dtype != 'bool':
+                raise ValueError("Trial sets input as numpy ndarray must have boolean data type dtype=='bool'!")
+            # Just return the input if it was a valid numpy array trial set
+            return set_name
         try:
             t_set = self.trial_sets[set_name]
         except KeyError:
