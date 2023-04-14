@@ -676,14 +676,7 @@ class Session(object):
             # index to the input trial_sets
             check_missing = True
             neuron_name = self.neuron_info['series_to_name'][series_name]
-            if trial_sets is None:
-                trial_sets = [neuron_name]
-            elif not isinstance(trial_sets, list):
-                trial_sets = [trial_sets]
-                trial_sets.append(neuron_name)
-            else:
-                #trial_sets is a list
-                trial_sets.append(neuron_name)
+            trial_sets = self.neuron_info[neuron_name].append_valid_trial_set(trial_sets)
         else:
             check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
@@ -721,14 +714,7 @@ class Session(object):
             # index to the input trial_sets
             check_missing = True
             neuron_name = self.neuron_info['series_to_name'][series_name]
-            if trial_sets is None:
-                trial_sets = [neuron_name]
-            elif not isinstance(trial_sets, list):
-                trial_sets = [trial_sets]
-                trial_sets.append(neuron_name)
-            else:
-                #trial_sets is a list
-                trial_sets.append(neuron_name)
+            trial_sets = self.neuron_info[neuron_name].append_valid_trial_set(trial_sets)
         else:
             check_missing = False
         t_inds = self._parse_blocks_trial_sets(blocks, trial_sets)
