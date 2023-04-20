@@ -586,12 +586,12 @@ class Session(object):
                     continue
                 neuron_trial['data'][new_series_name] = fr_scale * np.convolve(neuron_trial['data'][neuron_name], kernel, mode='same')
                 new_names.add(new_series_name)
-            if set_as_default:
-                # Assign this as default series for each neuron AFTER adding to session
-                self.neuron_info[neuron_name].set_use_series(new_series_name)
-
         for nn in new_names:
             self.__series_names[nn] = "neurons"
+            if set_as_default:
+                # Assign this as default series for each neuron AFTER adding to session
+                neuron_name = self.neuron_info['series_to_name'][nn]
+                self.neuron_info[neuron_name].set_use_series(nn)
         return None
 
     def set_default_neuron_series(self, series_name):
