@@ -770,17 +770,53 @@ class Session(object):
         set_name is an appropriate numpy array trial set index, it is returned
         as-is. """
         if isinstance(set_name, np.ndarray):
-            if len(set_name) != len(self):
-                raise ValueError("Trial sets input as numpy ndarray must be the same size as the session, 1 entry per trial!")
-            if set_name.dtype != 'bool':
-                raise ValueError("Trial sets input as numpy ndarray must have boolean data type dtype=='bool'!")
-            # Just return the input if it was a valid numpy array trial set
-            return set_name
-        try:
-            t_set = self.trial_sets[set_name]
-        except KeyError:
-            raise KeyError("Session object has no trial set named {0}.".format(set_name))
-        return t_set
+            if set_name.dtype == 'bool':
+                if len(set_name) != len(self):
+                    raise ValueError("Trial sets input as numpy boolean array must be the same size as the session!")
+                else:
+                    # set_name is boolean array same size as session so return
+                    return set_name
+            elif np.issubdtype(set_name.dtype, np.integer):
+                # Convert integer indices to boolean selection of trials
+                t_set = np.zeros(len(self), dtype='bool')
+                t_set[set_name] = True
+                return t_set
+            else:
+                raise ValueError("Trial sets input as numpy arrays must be either boolean or integer indices.")
+        elif isinstance(set_name, list):
+            # Check for list of integers or booleans as with numpy arrays
+            is_bool = True
+            is_int = True
+            # Check if all bool or int
+            for x in set_name:
+                if type(x) != bool:
+                    is_bool = False
+                if type(x) != int:
+                    is_int = False
+                if ( (not is_bool) and (not is_int) ):
+                    # Will be an error below but skip now for symmetry
+                    break
+            if is_bool:
+                if len(set_name) != len(self):
+                    raise ValueError("Trial sets input as a list of boolean values must be the same size as the session!")
+                else:
+                    # set_name is a list of booleans same size as session so return as numpy bool
+                    return np.array(set_name, dtype='bool')
+            elif is_int:
+                # Convert integer indices to boolean selection of trials
+                t_set = np.zeros(len(self), dtype='bool')
+                t_set[np.array(set_name, dtype=np.int64)] = True
+                return t_set
+            else:
+                # Value is neither bool or integer
+                raise ValueError("Trial sets input as list must contain either boolean or integer types!")
+        else:
+            # Try to get set_name from an existing session trial set key
+            try:
+                t_set = self.trial_sets[set_name]
+                return t_set
+            except KeyError:
+                raise KeyError("Session object has no trial set named {0}.".format(set_name))
 
     def _get_block(self, block_name):
         """Tries to get the trial indices associated with the specified block
@@ -867,9 +903,10 @@ class Session(object):
         # Gather all the possible trial_sets indicated by trial_sets
         if type(trial_sets) != list:
             trial_sets = [trial_sets]
-        all_trial_sets = self._get_trial_set(trial_sets[0])
-        if len(trial_sets) > 1:
-            for ts in trial_sets[1:]:
+        # Initialize boolean of all trials
+        all_trial_sets = np.ones(len(self), dtype='bool')
+        if len(trial_sets) > 0:
+            for ts in trial_sets:
                 all_trial_sets = np.logical_and(all_trial_sets, self._get_trial_set(ts))
         # Scan all block indices and trials
         keep_inds = np.zeros(all_blk_indices.shape[0], dtype='bool')
