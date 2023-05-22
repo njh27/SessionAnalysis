@@ -101,7 +101,7 @@ def find_saccade_windows(x_vel, y_vel, ind_cushion=20, acceleration_thresh=1, sp
     # Use switch index to find where one saccade ends and the next begins and store the locations.  These don't include
     # the beginning of first saccade or end of last saccade, so add 1 element to saccade_windows
     switch_points = np.where(switch_indices)[0]
-    saccade_windows = np.full((switch_points.shape[0] + 1, 2), np.nan, dtype=np.int64)
+    saccade_windows = np.zeros((switch_points.shape[0] + 1, 2), dtype=np.int64)
 
     # Check switch points and use their corresponding indices to find actual time values in threshold_indices
     for saccade in range(0, saccade_windows.shape[0]):
