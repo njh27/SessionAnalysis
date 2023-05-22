@@ -768,7 +768,10 @@ class Session(object):
         """Tries to get the trial indices associated with the specified trial
         set string and throws a more appropriate error during failure. If
         set_name is an appropriate numpy array trial set index, it is returned
-        as-is. """
+        as-is. Cannot input a list as lists are used for the outter structure
+        of all trial sets combined and it is less confusing this way."""
+        if isinstance(set_name, list):
+            raise ValueError(f"Individual trial sets must be strings of session trial sets, numpy arrays, or tuples, NOT LIST!")
         if isinstance(set_name, np.ndarray):
             if set_name.dtype == 'bool':
                 if len(set_name) != len(self):
@@ -783,7 +786,7 @@ class Session(object):
                 return t_set
             else:
                 raise ValueError("Trial sets input as numpy arrays must be either boolean or integer indices.")
-        elif isinstance(set_name, list):
+        elif isinstance(set_name, tuple):
             # Check for list of integers or booleans as with numpy arrays
             is_bool = True
             is_int = True
@@ -798,7 +801,7 @@ class Session(object):
                     break
             if is_bool:
                 if len(set_name) != len(self):
-                    raise ValueError("Trial sets input as a list of boolean values must be the same size as the session!")
+                    raise ValueError("Trial sets input as a tuple of boolean values must be the same size as the session!")
                 else:
                     # set_name is a list of booleans same size as session so return as numpy bool
                     return np.array(set_name, dtype='bool')
