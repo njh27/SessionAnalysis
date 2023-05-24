@@ -1,6 +1,5 @@
 import numpy as np
 from scipy import signal
-import matplotlib.pyplot as plt
 
 
 
@@ -217,9 +216,6 @@ def find_eye_offsets(x_pos, y_pos, x_vel, y_vel, x_targ=None, y_targ=None,
             print("Failed after", n_iters, "iterations, probably no valid indices left.")
             print(np.count_nonzero(~saccade_index))
             print(_)
-            plt.plot(x_vel)
-            plt.plot(y_vel)
-            plt.show()
             raise
         # Current modes are the magnitude of the delta offset update
         delta_eye = np.amax(np.abs((x_pos_mode, y_pos_mode, x_vel_mode, y_vel_mode)))
