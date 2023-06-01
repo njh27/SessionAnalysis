@@ -603,7 +603,7 @@ class Session(object):
             series_name = [series_name]
         for s_name in self.neuron_info['series_to_name']:
             for check_name in series_name:
-                if check_name in s_names:
+                if check_name in s_name:
                     self.neuron_info[self.neuron_info[s_name]].set_use_series(s_name)
 
     def align_trial_data(self, alignment_event, alignment_offset=0.,
@@ -995,7 +995,7 @@ class Session(object):
             if len(trial_windows) > 1:
                 raise RuntimeError("Found more blocks than names given. Add block_names or check that criteria are appropriately strict.")
             else:
-                self.blocks[block_name] = trial_windows[0]
+                self.blocks[block_names] = trial_windows[0]
         return None
 
     def add_trial_set(self, new_set_name, trials=None, blocks=None):
