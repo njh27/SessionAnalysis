@@ -14,7 +14,20 @@ def acc_from_vel(velocity, filter_win, axis=1):
     # DO NOT WANT TO ALTER INPUTS!
     velocity = np.copy(velocity)
     velocity[np.isnan(velocity)] = 0
-    return signal.savgol_filter(velocity, filter_win, 1, deriv=1, axis=axis) * 1000
+    try:
+        acc = signal.savgol_filter(velocity, filter_win, 1, deriv=1, axis=axis) * 1000
+    except ValueError:
+        print(f"Insufficient data size {velocity.shape[axis]} with filter window {filter_win}. Using diff.")
+        acc = np.zeros((velocity.shape))
+        if axis == 0:
+            acc[:-1, :, :] = np.diff(velocity, axis=axis)
+        elif axis == 1:
+            acc[:, :-1, :] = np.diff(velocity, axis=axis)
+        elif axis == 2:
+            acc[:, :, :-1] = np.diff(velocity, axis=2)
+        else:
+            raise
+    return acc
 
 
 def mode1D(x):
