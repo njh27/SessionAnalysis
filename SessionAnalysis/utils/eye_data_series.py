@@ -17,7 +17,7 @@ def acc_from_vel(velocity, filter_win, axis=1):
     try:
         acc = signal.savgol_filter(velocity, filter_win, 1, deriv=1, axis=axis) * 1000
     except ValueError:
-        print(f"Insufficient data size {velocity.shape[axis]} with filter window {filter_win}. Using filter win of 1.")
+        print(f"Insufficient data size {velocity.shape} on axis {axis} with filter window {filter_win}. Using filter win of 1.")
         acc = signal.savgol_filter(velocity, 1, 1, deriv=1, axis=axis) * 1000
     return acc
 

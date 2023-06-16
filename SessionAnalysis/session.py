@@ -737,7 +737,7 @@ class Session(object):
             t_data[out_inds] = trial_obj['data'][series_name][valid_tinds]
             data_out.append(t_data)
 
-        data_out = [] if len(data_out) == 0 else np.vstack(data_out)
+        data_out = np.array([]) if len(data_out) == 0 else np.vstack(data_out)
         if return_inds:
             if len(t_inds_to_delete) > 0:
                 del_sel = np.zeros(t_inds.size, dtype='bool')
