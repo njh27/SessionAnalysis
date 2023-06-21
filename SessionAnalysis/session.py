@@ -907,10 +907,10 @@ class Session(object):
         if type(trial_sets) != list:
             trial_sets = [trial_sets]
         # Initialize boolean of all trials
-        all_trial_sets = np.ones(len(self), dtype='bool')
+        all_trial_sets = np.zeros(len(self), dtype='bool')
         if len(trial_sets) > 0:
             for ts in trial_sets:
-                all_trial_sets = np.logical_and(all_trial_sets, self._get_trial_set(ts))
+                all_trial_sets = np.logical_or(all_trial_sets, self._get_trial_set(ts))
         # Scan all block indices and trials
         keep_inds = np.zeros(all_blk_indices.shape[0], dtype='bool')
         for n_ind, t_ind in enumerate(all_blk_indices):
