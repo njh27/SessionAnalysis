@@ -919,6 +919,23 @@ class Session(object):
         all_blk_indices = all_blk_indices[keep_inds]
         return all_blk_indices
 
+    def union_trial_sets_to_indices(self, trial_sets):
+        """ Since standard __blocks_and_trials_to_indices converts trial sets using
+        intersection (AND) beween input sets, this provides alternative to return
+        an index of the union of the input trial sets, that can then be passed
+        into __blocks_and_trials_to_indices as a numpy array of indices.
+        """
+        # Gather all the possible trial_sets indicated by trial_sets
+        if type(trial_sets) != list:
+            trial_sets = [trial_sets]
+        # Initialize boolean of all trials
+        all_trial_sets = np.zeros(len(self), dtype='bool')
+        if len(trial_sets) > 0:
+            for ts in trial_sets:
+                all_trial_sets = np.logical_or(all_trial_sets, self._get_trial_set(ts))
+        return np.where(all_trial_sets)[0]
+        
+
     def _parse_blocks_trial_sets(self, blocks=None, trial_sets=None):
         """ Primarily parses inputs of None to indicate all trials and
         otherwise calls __blocks_and_trials_to_indices() above for main work.
