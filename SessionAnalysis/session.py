@@ -773,6 +773,9 @@ class Session(object):
         if isinstance(set_name, list):
             raise ValueError(f"Individual trial sets must be strings of session trial sets, numpy arrays, or tuples, NOT LIST!")
         if isinstance(set_name, np.ndarray):
+            if len(set_name) == 0:
+                # No trials returns all zeros
+                return np.zeros((len(self), ), dtype='bool')
             if set_name.dtype == 'bool':
                 if len(set_name) != len(self):
                     raise ValueError("Trial sets input as numpy boolean array must be the same size as the session!")
@@ -787,6 +790,9 @@ class Session(object):
             else:
                 raise ValueError("Trial sets input as numpy arrays must be either boolean or integer indices.")
         elif isinstance(set_name, tuple):
+            if len(set_name) == 0:
+                # No trials returns all zeros
+                return np.zeros((len(self), ), dtype='bool')
             # Check for list of integers or booleans as with numpy arrays
             is_bool = True
             is_int = True
