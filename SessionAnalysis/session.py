@@ -353,9 +353,9 @@ class ConjoinedList(MutableSequence):
 
 
 class Session(object):
-    """ A class containing trials and their associated timeseries and events
-    to allow behavioral and neural analysis of specific trials from an
-    experimental session.
+    """ A data structure class to which trial data objects and their associated 
+    time series and events can be added. Imposes strict alignment of trials and
+    convenient access to arbitrary subsets of trials and time series data.
 
     The base object should be created from a list of dictionaries that represent
     trials. From this point, list of neuron dictionaries can be added as can
@@ -559,8 +559,8 @@ class Session(object):
     ##### METHODS THAT ARE SPECIFIC TO SESSIONS WITH NEURONS ADDED #########
     def gauss_convolved_FR(self, sigma, cutoff_sigma=4, series_name="_gauss",
                             set_as_default=True):
-        """ Units of sigma must be given in ms and is converted to samples
-        using the global neuron dt."""
+        """ Apply Gaussian kernel to filter each neuron's firing rate time series. Units of sigma must be given in ms 
+        and is converted to samples using the global neuron dt."""
         try:
             if not isinstance(self['neurons'], ConjoinedList):
                 raise ValueError("Session must have the data_type 'neurons' added in a ConjoinedList to compute firing rates")
