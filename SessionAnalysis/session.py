@@ -902,8 +902,10 @@ class Session(object):
     def __blocks_and_trials_to_indices(self, blocks, trial_sets):
         """ Given a key, or list of keys, to the blocks and trial sets dictionaries
         this function returns the indices of trials satisfiying the condition:
-        --T in at least 1 block in blocks and at least 1 set in trial_sets--
-        where T is a trial whose index is included in the final output. """
+        --T in at least 1 block in blocks and the intersection in trial_sets--
+        where T is a trial whose index is included in the final output. 
+        If a trial set union is desired, call "union_trial_sets_to_indices" below
+        and pass the output indices to this function. """
         # Gather all the possible block indices indicated by blocks
         if blocks is None:
             all_blk_indices = np.arange(0, len(self), dtype=np.int32)
