@@ -975,7 +975,7 @@ class Session(object):
         return None
 
     def __validate_trial_data(self, trial_data):
-        """ Checks data in trial_data against imeseries data of
+        """ Checks data in trial_data against timeseries data of
         the main trial list and metadata to ensure newly added trials match
         the timeseries data and length. """
 
@@ -1167,9 +1167,9 @@ class Session(object):
     ########## A SET OF NAME DISPLAY FUNCTIONS FOR USEFUL PROPERTIES ##########
     def get_trial_names(self):
         trial_names = []
-        for trial in self.trials:
-            if trial['trial_name'] not in trial_names:
-                trial_names.append(trial['trial_name'])
+        for trial in self:
+            if trial['name'] not in trial_names:
+                trial_names.append(trial['name'])
         return trial_names
 
     def get_data_names(self):
